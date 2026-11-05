@@ -151,15 +151,6 @@ export class AR {
       if (this.active) this.requestExit();
     });
     this.renderer.setAnimationLoop((t, f) => this.frame(f));
-    // Consejo una vez por partida: la mano tiene que estar lejos del móvil para tapar
-    if (!this._handTip) {
-      setTimeout(() => {
-        if (this.active && this.depthTime && !this._handTip) {
-          this._handTip = true;
-          this.toast('✋ Para tapar a un zombi con la mano, <b>estira bien el brazo</b>: tiene que estar a más de medio metro del móvil.', 6000);
-        }
-      }, 6000);
-    }
   }
 
   async startFallback() {
@@ -491,6 +482,7 @@ if (uOn > 0.5) {
       `toques: pointer ${d.pointer || 0} · touch ${d.touch || 0} · click ${d.click || 0} · select ${d.select || 0}`,
       t ? `último toque ${t.x},${t.y} · objetos ${t.n} · acierto ${t.hit ? 'sí' : 'no'} · prof ${t.depth.toFixed(2)} m` : 'sin toques',
       f ? `pared: lecturas ${f.vals} · objeto a ${f.obj.toFixed(2)} m` : '',
+      this.diagExtra || '',
       this.diagErr ? `error: ${this.diagErr}` : '',
     ].filter(Boolean).join('\n');
   }
@@ -654,6 +646,7 @@ if (uOn > 0.5) {
     this.occ.uniforms.uOn.value = 0;
     this.depthCpu = null;
     this.depthTime = 0;
+    this.diagExtra = '';
     this.exitHandlers.clear();
     this.root.hidden = true;
     this.root.classList.remove('xr', 'nocam', 'drag');

@@ -632,9 +632,9 @@ const TEMPS = [
   [0, '🌋 ¡Ardiendo!', '#ff2d2d'],
 ];
 
-function arrivedAt(target) {
+function arrivedAt(target, maxR = 20) {
   if (!geo.pos) return false;
-  return distM(geo.pos, target) <= Math.max(12, Math.min(geo.acc || 0, 20));
+  return distM(geo.pos, target) <= Math.max(8, Math.min(Math.max(12, geo.acc || 0), maxR));
 }
 
 // Botones para la prueba en casa dentro de la cámara (andar sin moverse del sofá)
@@ -839,13 +839,19 @@ function followFootprints({ ar }, cl, target) {
       if (!geo.pos) { ar.setMsg('📡 Buscando GPS…'); prints.visible = false; return; }
       const d = distM(geo.pos, target);
       ar.setCount(`👣 ${Math.round(d)} m`);
-      if (arrivedAt(target)) { done = true; prints.visible = false; ar.setCount(''); res(); return; }
+      if (arrivedAt(target, 12)) { done = true; prints.visible = false; ar.setCount(''); ar.arrow(null); ar.diagExtra = ''; res(); return; }
       // en el ordenador (arrastrando) no hay brújula: el norte es hacia donde se miraba al empezar
       const heading = ar.mode === 'drag' ? (((-ar.camYaw() / DEG) % 360) + 360) % 360 : geo.heading;
-      if (heading == null) { ar.setMsg('🧭 Mueve el móvil haciendo un 8 para que aparezcan las huellas'); prints.visible = false; return; }
-      ar.setMsg('👣 Sigue las huellas de sangre…');
+      if (heading == null) { ar.setMsg('🧭 Mueve el móvil haciendo un 8 para que aparezcan las huellas', 0); prints.visible = false; ar.diagExtra = `huellas: sin brújula · ${Math.round(d)} m`; return; }
       prints.visible = true;
       const yaw = bearingToYaw(ar, yst, bearingDeg(geo.pos, target), heading);
+      // si las huellas no están delante, una flecha indica hacia dónde girar
+      let rel = yaw - ar.camYaw();
+      while (rel > Math.PI) rel -= 2 * Math.PI;
+      while (rel < -Math.PI) rel += 2 * Math.PI;
+      ar.arrow(Math.abs(rel) > 0.6 ? rel : null);
+      ar.setMsg(Math.abs(rel) > 0.6 ? '👣 ¡Las huellas van por ahí! Gira' : '👣 Sigue las huellas de sangre…');
+      ar.diagExtra = `huellas: brújula ${Math.round(heading)}° · rumbo ${Math.round(bearingDeg(geo.pos, target))}° · ${Math.round(d)} m · giro ${Math.round(rel / DEG)}°`;
       const p = ar.camPos();
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw), px = -fz, pz = fx;
       steps.forEach((w, i) => {
