@@ -136,11 +136,11 @@ export class AR {
     }
     this.depthOn = !!(session.enabledFeatures && session.enabledFeatures.includes('depth-sensing') && session.depthUsage === 'cpu-optimized');
     this.occ.uniforms.uFloat.value = session.depthDataFormat === 'float32' ? 1 : 0;
-    // Suelo: el círculo verde solo se pide la primera vez. Luego se recuerda a qué altura
-    // se lleva el móvil y se usa directamente (y se afina en silencio si el suelo se ve).
+    // Suelo: nunca se pide nada. Se supone la altura de un niño (o la guardada en este móvil)
+    // y se corrige en silencio durante los primeros segundos con lo que ve la cámara.
     const h = store.get('floorH', null);
-    this.floorQuiet = typeof h === 'number' && h > 0.4 && h < 2.2;
-    this.floorY = this.floorQuiet ? -h : -KID_EYE;
+    this.floorQuiet = true;
+    this.floorY = typeof h === 'number' && h > 0.4 && h < 2.2 ? -h : -KID_EYE;
     this.floorLocked = false;
     this.floorCands = [];
     this.floorStart = performance.now();
@@ -256,7 +256,7 @@ export class AR {
     const r = f.getHitTestResults(this.hitSource);
     this.reticle.visible = false;
     // en modo silencioso solo se afina durante los primeros segundos
-    if (this.floorQuiet && performance.now() - this.floorStart > 6000) { this.floorLocked = true; return; }
+    if (this.floorQuiet && performance.now() - this.floorStart > 8000) { this.floorLocked = true; return; }
     if (!r.length) return;
     const p = r[0].getPose(this.refSpace);
     if (!p) return;
@@ -275,7 +275,7 @@ export class AR {
     const c = [...(this.floorCands || [])].sort((a, b) => a - b);
     // el suelo es lo más bajo: nos quedamos con la parte baja de las lecturas
     const found = c.length ? c[Math.floor(c.length * 0.25)] : null;
-    if (found != null && (!this.floorQuiet || Math.abs(found - this.floorY) < 0.4)) {
+    if (found != null && (!this.floorQuiet || Math.abs(found - this.floorY) < 0.6)) {
       this.floorY = found;
       store.set('floorH', this.camera.position.y - found); // altura del móvil sobre el suelo
     } else if (found == null && !this.floorQuiet) this.floorY = fallbackY ?? this.camera.position.y - KID_EYE;
