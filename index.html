@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0f">
+  <meta name="description" content="Escape room de zombis con realidad aumentada para jugar en el parque.">
+  <title>La Niebla del Parque</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="fog"></div>
+  <main id="app"><p class="center" style="margin-top:40vh">Cargando…</p></main>
+  <div id="ar" hidden>
+    <video id="ar-video" playsinline muted autoplay></video>
+    <canvas id="ar-canvas"></canvas>
+    <div id="ar-ui">
+      <div id="ar-dark" hidden></div>
+      <div id="ar-flash"></div>
+      <div id="ar-top" class="noxr"><span id="ar-timer"></span><span id="ar-count"></span></div>
+      <div id="ar-msg" hidden></div>
+      <div id="ar-cross"></div>
+      <div id="ar-arrow" hidden></div>
+      <button id="ar-action" class="primary" hidden></button>
+      <div id="ar-toast"></div>
+      <div id="ar-drag-help">👆 Arrastra para mirar alrededor</div>
+      <div id="ar-bottom" class="noxr">
+        <button id="ar-hint" class="hintbtn">💡 Pista</button>
+        <button id="ar-exit" class="small">✖ Salir</button>
+      </div>
+    </div>
+  </div>
+  <div id="overlay"></div>
+</body>
+</html>
