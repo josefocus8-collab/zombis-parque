@@ -436,4 +436,254 @@ export function makeBackpack(fear) {
   return g;
 }
 
+// ---------- Cofre ----------
+export function makeChest(fear) {
+  const g = new THREE.Group();
+  const woodTex = canvasTex(128, 128, (c, w, h) => {
+    c.fillStyle = '#6b3f1d'; c.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 16) { c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, y, w, 2); }
+    for (let i = 0; i < 200; i++) { c.fillStyle = `rgba(0,0,0,${rnd(0.05, 0.2)})`; c.fillRect(rnd(0, w), rnd(0, h), rnd(4, 20), 1); }
+    if (fear >= 2) blood(c, w, h, fear >= 3 ? 5 : 2, fear >= 3 ? 6 : 2);
+    // arañazos
+    c.strokeStyle = 'rgba(20,10,5,.8)'; c.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { const x = rnd(20, 100); c.beginPath(); c.moveTo(x, 20); c.lineTo(x + 15, 90); c.stroke(); }
+  });
+  const wood = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.85 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.8, roughness: 0.4 });
+  const W = 0.7, D = 0.45, H = 0.4;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), wood);
+  base.position.y = H / 2;
+  g.add(base);
+  // interior brillante (se ve al abrir)
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.92, D * 0.9), new THREE.MeshBasicMaterial({ color: 0xffe28a }));
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = H + 0.003;
+  glow.visible = false;
+  g.add(glow);
+  // tapa con bisagra atrás
+  const hinge = new THREE.Group();
+  hinge.position.set(0, H, -D / 2);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 16, 1, false, 0, Math.PI), wood);
+  lid.rotation.z = Math.PI / 2; // media caña tumbada a lo ancho, con la parte curva hacia arriba
+  lid.position.z = D / 2;
+  hinge.add(lid);
+  g.add(hinge);
+  // bandas metálicas y candado
+  for (const x of [-W / 2 + 0.08, W / 2 - 0.08]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.05, H + 0.005, D + 0.01), metal);
+    band.position.set(x, H / 2, 0);
+    g.add(band);
+  }
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.04), new THREE.MeshStandardMaterial({ color: 0xd4a017, metalness: 0.9, roughness: 0.3 }));
+  lock.position.set(0, H - 0.05, D / 2 + 0.02);
+  g.add(lock);
+  g.add(contactShadow());
+  g.userData.center = new THREE.Vector3(0, 0.25, 0);
+  g.userData.radius = 0.6;
+  let open = 0, opening = false;
+  g.userData.open = () => { opening = true; lock.visible = false; glow.visible = true; };
+  g.userData.animate = (dt) => {
+    if (opening && open < 1) open = Math.min(1, open + dt * 1.5);
+    hinge.rotation.x = -open * 1.9;
+  };
+  return g;
+}
+
+// ---------- Murciélago ----------
+export function makeBat() {
+  const g = new THREE.Group();
+  const black = new THREE.MeshStandardMaterial({ color: 0x1a1414, roughness: 0.9 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: 0x2a1a1a, roughness: 0.8, side: THREE.DoubleSide });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), black);
+  body.scale.set(1, 0.9, 1.4);
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), black);
+  head.position.set(0, 0.03, 0.11);
+  g.add(head);
+  for (const x of [-0.035, 0.035]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.07, 6), black);
+    ear.position.set(x, 0.1, 0.1);
+    g.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+    eye.position.set(x * 0.8, 0.045, 0.165);
+    g.add(eye);
+  }
+  // alas: membrana con forma de murciélago
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(0.12, 0.08);
+  shape.lineTo(0.36, 0.05);
+  shape.quadraticCurveTo(0.3, -0.02, 0.32, -0.1);
+  shape.quadraticCurveTo(0.24, -0.05, 0.2, -0.12);
+  shape.quadraticCurveTo(0.14, -0.06, 0.08, -0.1);
+  shape.lineTo(0, -0.04);
+  const wingGeo = new THREE.ShapeGeometry(shape);
+  wingGeo.rotateX(-Math.PI / 2);
+  const wl = new THREE.Group(), wr = new THREE.Group();
+  const ml = new THREE.Mesh(wingGeo, wingMat);
+  const mr = new THREE.Mesh(wingGeo, wingMat);
+  mr.scale.x = 1;
+  ml.scale.x = -1;
+  wl.add(ml); wr.add(mr);
+  wl.position.x = -0.05; wr.position.x = 0.05;
+  g.add(wl, wr);
+  g.scale.setScalar(1.6);
+  g.userData.center = new THREE.Vector3(0, 0, 0);
+  g.userData.radius = 0.45;
+  let t = Math.random() * 10;
+  g.userData.flap = (dt, speed = 14) => {
+    t += dt;
+    const a = Math.sin(t * speed) * 0.9;
+    wl.rotation.z = -a;
+    wr.rotation.z = a;
+  };
+  return g;
+}
+
+// ---------- Huella de pie con sangre ----------
+let _footTex = null;
+export function makeFootprint(left) {
+  _footTex = _footTex || canvasTex(64, 128, (c) => {
+    c.fillStyle = 'rgba(205,15,30,.95)';
+    c.beginPath(); c.ellipse(32, 44, 17, 30, 0, 0, 7); c.fill(); // planta (arriba = hacia delante)
+    c.beginPath(); c.ellipse(32, 100, 13, 18, 0, 0, 7); c.fill(); // talón
+    for (let i = 0; i < 8; i++) { c.beginPath(); c.arc(rnd(10, 54), rnd(10, 120), rnd(1, 3), 0, 7); c.fill(); }
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.4), new THREE.MeshBasicMaterial({ map: _footTex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  if (left) m.scale.x = -1;
+  m.position.y = 0.012;
+  return m;
+}
+
+// ---------- Ingredientes ----------
+export function makeIngredient(kind) {
+  const g = new THREE.Group();
+  if (kind === 1) { // seta
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd8262f, emissive: 0x400008 }));
+    cap.position.y = 0.09;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.1, 10), new THREE.MeshStandardMaterial({ color: 0xf2ead8 }));
+    stem.position.y = 0.05;
+    g.add(cap, stem);
+    for (let i = 0; i < 6; i++) {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      const a = (i / 6) * 6.28, r = 0.06;
+      dot.position.set(Math.cos(a) * r, 0.14, Math.sin(a) * r);
+      g.add(dot);
+    }
+  } else if (kind === 2) { // colmillo
+    const fang = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.18, 10), new THREE.MeshStandardMaterial({ color: 0xf5f0e0, roughness: 0.4 }));
+    fang.rotation.z = Math.PI;
+    fang.position.y = 0.09;
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: 0xa0101a }));
+    tip.position.y = 0.0;
+    g.add(fang, tip);
+  } else { // agua de luna
+    const flask = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshStandardMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.55, roughness: 0.1 }));
+    flask.position.y = 0.07;
+    const water = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), new THREE.MeshBasicMaterial({ color: 0x4fc3ff }));
+    water.position.y = 0.065;
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.07, 10), new THREE.MeshStandardMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.6 }));
+    neck.position.y = 0.16;
+    const cork = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.02, 0.025, 10), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }));
+    cork.position.y = 0.205;
+    g.add(flask, water, neck, cork);
+  }
+  g.userData.center = new THREE.Vector3(0, 0.08, 0);
+  g.userData.radius = 0.2;
+  return g;
+}
+
+// ---------- Mesa de laboratorio con caldero ----------
+export function makeLabTable() {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x4a2f1a, roughness: 0.8 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.7), wood);
+  top.position.y = 0.8;
+  g.add(top);
+  for (const [x, z] of [[-0.62, -0.28], [0.62, -0.28], [-0.62, 0.28], [0.62, 0.28]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.8, 0.06), wood);
+    leg.position.set(x, 0.4, z);
+    g.add(leg);
+  }
+  // caldero
+  const pot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14, 0, Math.PI * 2, Math.PI * 0.3, Math.PI * 0.7), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide }));
+  pot.position.set(0, 0.98, 0);
+  g.add(pot);
+  const liquidMat = new THREE.MeshBasicMaterial({ color: 0x3a8f2a });
+  const liquid = new THREE.Mesh(new THREE.CircleGeometry(0.16, 24), liquidMat);
+  liquid.rotation.x = -Math.PI / 2;
+  liquid.position.set(0, 1.08, 0);
+  g.add(liquid);
+  const bubbles = [];
+  for (let i = 0; i < 8; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9cff7a, transparent: true, opacity: 0.8 }));
+    b.userData.t = Math.random();
+    g.add(b);
+    bubbles.push(b);
+  }
+  // frascos de adorno
+  const deco = [[0.5, 0x8f2be2], [0.58, 0xffa500], [-0.55, 0x22c55e]];
+  for (const [x, col] of deco) {
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.16, 10), new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.7 }));
+    f.position.set(x, 0.91, -0.22);
+    g.add(f);
+  }
+  g.add(contactShadow());
+  g.userData.center = new THREE.Vector3(0, 0.9, 0);
+  g.userData.radius = 0.7;
+  g.userData.potPos = new THREE.Vector3(0, 1.1, 0);
+  g.userData.setColor = (hex) => liquidMat.color.setHex(hex);
+  g.userData.animate = (dt) => {
+    for (const b of bubbles) {
+      b.userData.t += dt * 0.6;
+      if (b.userData.t > 1) b.userData.t = 0;
+      const a = b.userData.t * 7 + bubbles.indexOf(b);
+      b.position.set(Math.cos(a) * 0.08, 1.08 + b.userData.t * 0.25, Math.sin(a) * 0.08);
+      b.material.opacity = 0.8 * (1 - b.userData.t);
+      b.material.color.copy(liquidMat.color).offsetHSL(0, 0, 0.25);
+    }
+  };
+  return g;
+}
+
+// ---------- Doctor Moho (modelo de Mixamo, herido) ----------
+let docPromise = null, docGltf = null;
+export function preloadDoctor() {
+  docPromise = docPromise || new GLTFLoader().loadAsync('models/doctor.glb').then((g) => { docGltf = g; return g; });
+  return docPromise.catch(() => null);
+}
+export function makeDoctor() {
+  if (!docGltf) return null;
+  const model = SkeletonUtils.clone(docGltf.scene);
+  const root = new THREE.Group();
+  const box = new THREE.Box3().setFromObject(model);
+  const s = 1.75 / (box.max.y - box.min.y);
+  model.scale.multiplyScalar(s);
+  model.position.y = -box.min.y * s;
+  model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+  root.add(model);
+  root.add(contactShadow());
+  const mixer = new THREE.AnimationMixer(model);
+  const clips = Object.fromEntries(docGltf.animations.map((c) => [c.name, c]));
+  let current = null;
+  const play = (name) => {
+    if (!clips[name]) return;
+    const a = mixer.clipAction(clips[name]);
+    if (a === current) return;
+    a.reset().play();
+    if (current) current.crossFadeTo(a, 0.4, false);
+    current = a;
+  };
+  play('wave');
+  root.userData = {
+    center: new THREE.Vector3(0, 1.0, 0),
+    tapSeg: [new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(0, 1.6, 0)],
+    radius: 0.35,
+    play,
+    animate(dt) { mixer.update(dt); },
+  };
+  return root;
+}
+
 export { textSprite };

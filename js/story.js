@@ -1,18 +1,22 @@
 // Historia y textos del juego. fear: 1 suave, 2 miedo, 3 terror
-// Partida corta (unos 20 minutos): 4 ingredientes + el maletín final = 5 puntos en el parque.
+// Partida de unos 20 minutos con 4 puntos:
+//  1. Radar (con punto de dirección) → cofre con un zombi al lado → ingrediente 1
+//  2. Huellas de sangre en el suelo (cámara) → 5 murciélagos → ingrediente 2
+//  3. Brújula → el Doctor Moho, herido, da el ingrediente 3
+//  4. Radar (sin punto) con 5 zombis por el camino → mesa de laboratorio: mezclar los ingredientes
 const F = (fear, suave, miedo, terror) => (fear >= 3 ? terror : fear >= 2 ? miedo : suave);
 
-export const N_ING = 4; // ingredientes (y números del código final)
-export const FINAL = 5; // el último punto es el laboratorio
+export const N_ING = 3; // ingredientes
+export const FINAL = 4; // el último punto es el laboratorio
 
 export const FEAR_NAMES = { 1: 'Suave', 2: 'Miedo', 3: 'Terror' };
 
+// nav: cómo se llega. 'none' = la propia prueba guía con la cámara (huellas o radar con zombis)
 export const STATIONS = {
-  1: { nav: 'radar', ch: ['find'], ing: { icon: '🍄', name: 'Seta mágica' } },
-  2: { nav: 'radar', ch: ['flashlight'], ing: { icon: '🪶', name: 'Pluma de búho' } },
-  3: { nav: 'compass', ch: ['sums'], ing: { icon: '💎', name: 'Piedra brillante' } },
-  4: { nav: 'compass', ch: ['horde'], ing: { icon: '🦷', name: 'Diente de dragón' } },
-  5: { nav: 'compass', ch: ['final'] },
+  1: { nav: 'radar', ch: ['chest'], ing: { icon: '🍄', name: 'Seta mágica' } },
+  2: { nav: 'none', ch: ['bats'], ing: { icon: '🦇', name: 'Colmillo de murciélago' } },
+  3: { nav: 'compass', ch: ['doctor'], ing: { icon: '🧪', name: 'Agua de luna' } },
+  4: { nav: 'none', ch: ['lab'] },
 };
 
 export const ROLES = ['Capitán', 'Exploradora', 'Vigía', 'Científica', 'Linterna', 'Rastreador', 'Médica', 'Guardián', 'Mensajera', 'Cazaniebla'];
@@ -21,67 +25,61 @@ const ANIMALS = ['Lobo', 'Búho', 'Zorro', 'Lince', 'Halcón', 'Tejón', 'Cuervo
 const ADJ = ['Rojo', 'Gris', 'Veloz', 'Valiente', 'Sombra', 'Negro', 'Feroz', 'Silencioso', 'Azul', 'Dorado'];
 export const randomNick = () => ANIMALS[Math.floor(Math.random() * ANIMALS.length)] + ' ' + ADJ[Math.floor(Math.random() * ADJ.length)];
 
-// Mensaje inicial + primera pista, todo junto para empezar rápido
 export function introText(fear) {
   return F(fear,
-    '…ksshh… Soy el Doctor Moho. Una niebla gris se ha escapado de mi laboratorio y convierte a la gente en zombis. Patrulla Antídoto: encontrad 4 ingredientes antes de 20 minutos. El primero está en mi mochila. ¡Seguid el radar!',
-    '…ksshh… Soy el Doctor Moho. Una niebla roja se ha escapado y convierte a la gente en zombis con heridas abiertas. Patrulla Antídoto: tenéis 20 minutos para encontrar 4 ingredientes. El primero está en mi mochila. ¡Seguid el radar!',
-    '…ksshh… Soy el Doctor Moho. La niebla roja se ha escapado. He visto zombis morder… hay sangre por todas partes. Tenéis 20 minutos para encontrar 4 ingredientes. El primero está en mi mochila. Seguid el radar… y no hagáis ruido.');
+    '…ksshh… Soy el Doctor Moho. Una niebla gris convierte a la gente en zombis. Para el antídoto necesito 3 ingredientes y mezclarlos en mi laboratorio. Tenéis 20 minutos. El primero está en un cofre. ¡Seguid el radar!',
+    '…ksshh… Soy el Doctor Moho. Una niebla roja convierte a la gente en zombis con heridas abiertas. Necesito 3 ingredientes para el antídoto. Tenéis 20 minutos. El primero está en un cofre. ¡Seguid el radar!',
+    '…ksshh… Soy el Doctor Moho. La niebla roja se ha escapado. He visto zombis morder… hay sangre por todas partes. Necesito 3 ingredientes para el antídoto. Tenéis 20 minutos. El primero está en un cofre. Seguid el radar… y no hagáis ruido.');
 }
 
 export function lateText(fear, got, mins) {
   return `Te unes a la Patrulla Antídoto. Tu equipo tiene ${got} de ${N_ING} ingredientes y quedan ${mins} minutos. ${F(fear, '¡Ayúdales!', '¡Corre, hay zombis cerca!', '¡Corre! Hay huellas de sangre por todas partes…')}`;
 }
 
-// Mensaje del Doctor al salir hacia cada punto (el 1 va dentro del mensaje inicial)
+// Mensaje del Doctor al salir hacia cada punto
 export function stationText(s, fear) {
   switch (s) {
     case 1: return introText(fear);
     case 2: return F(fear,
-      'Algo se mueve entre los árboles. La pluma de búho está donde la niebla es más oscura. Seguid el radar.',
-      'Gruñidos entre los árboles… La pluma de búho está donde la niebla es más oscura. Seguid el radar.',
-      'He oído gritos entre los árboles. La pluma de búho está donde la niebla es más oscura. Seguid el radar… y no miréis atrás.');
+      'Mirad el suelo con la cámara: hay huellas rojas. Seguidlas hasta el segundo ingrediente. Cuidado con los murciélagos.',
+      'En el suelo hay huellas de sangre… Seguidlas con la cámara hasta el segundo ingrediente. Y cuidado: allí viven murciélagos.',
+      'Huellas de sangre… alguien ha pasado por ahí arrastrándose. Seguidlas con la cámara. Llevan al segundo ingrediente… y a los murciélagos.');
     case 3: return F(fear,
-      'Me noto raro… La piedra brillante está en un cofre. Seguid la flecha de la brújula.',
-      'Me ha mordido uno… me noto raro. La piedra está en un cofre lleno de arañazos. Seguid la brújula.',
-      'Me ha mordido… en el cuello. Me arde. La piedra está en un cofre con huellas rojas. Seguid la brújula… rápido.');
+      'Me noto raro… Estoy escondido. Seguid la flecha de la brújula y venid a buscarme.',
+      'Me ha mordido un zombi… Estoy escondido. Seguid la brújula y venid a buscarme. Rápido.',
+      'Me ha mordido… en el cuello. Me arde. Estoy escondido. Seguid la brújula… antes de que me convierta.');
     case 4: return F(fear,
-      'Oigo muchos pasos… El diente de dragón está donde marca la brújula. ¡Preparad el polvo de dormir!',
-      'Viene una horda… El diente de dragón está donde marca la brújula. ¡Preparad el polvo de dormir!',
-      'Grrr… perdón… Viene una HORDA, con la boca abierta. El diente está donde marca la brújula. ¡Polvo de dormir, ya!');
-    case 5: return F(fear,
-      '¡Tenéis los 4 ingredientes! Id al laboratorio con la brújula. Cada uno guarda algunos números del maletín.',
-      '¡Los 4 ingredientes! Id al laboratorio con la brújula y juntad vuestros números para abrir el maletín.',
-      '¡Los 4 ingredientes! Al laboratorio… con la brújula. Juntad vuestros números. Y daos prisa… porque yo… ya no soy… yo…');
+      'Ahora id a mi laboratorio. El radar os guiará, pero hay zombis por el camino. Llevad el polvo de dormir.',
+      'Al laboratorio. El radar os guiará… pero el camino está lleno de zombis. ¡Dormidlos tocándolos!',
+      'Al laboratorio… El radar os guiará. El camino está lleno de zombis hambrientos. Dormidlos… o no llegaréis.');
   }
   return '';
 }
+
+// Lo que dice el Doctor cuando lo encontráis (punto 3)
+export function doctorText(fear) {
+  return F(fear,
+    '¡Por fin! Me he torcido el tobillo huyendo de los zombis. Tomad: agua de luna, el tercer ingrediente. Ahora id a mi laboratorio y mezcladlo todo. ¡Confío en vosotros!',
+    '¡Por fin! Un zombi me ha mordido la pierna y no puedo andar. Tomad: agua de luna, el tercer ingrediente. Id a mi laboratorio y mezcladlo todo. ¡Deprisa!',
+    '¡Por fin! Me ha mordido… noto la niebla dentro. Tomad: agua de luna, el tercer ingrediente. Id a mi laboratorio y haced el antídoto. ¡Deprisa… antes de que os muerda yo!');
+}
+
+export const LAB_TEXT = '¡Mi laboratorio! Tocad cada ingrediente para echarlo en el caldero.';
 
 // Mensaje al conseguir el ingrediente
 export function rewardText(s, fear) {
   switch (s) {
     case 1: return F(fear,
-      '¡La mochila! Dentro hay una seta mágica y una nota: «La niebla odia la luz».',
-      '¡La mochila! Está rota. Dentro hay una seta mágica y una nota: «La niebla odia la luz».',
-      '¡La mochila! Tiene sangre y marcas de dientes. Dentro, una seta mágica y una nota: «La niebla odia la luz».');
+      '¡El cofre se abre! Dentro hay una seta mágica que brilla.',
+      '¡El cofre se abre! Dentro, entre telarañas, hay una seta mágica.',
+      '¡El cofre se abre! Tiene arañazos y sangre seca… y dentro, una seta mágica.');
     case 2: return F(fear,
-      'Los zombis se han dormido. Entre las hojas brilla una pluma de búho.',
-      'Los zombis han caído dormidos. Entre ellos brilla una pluma de búho.',
-      'Los zombis han caído al suelo, gruñendo en sueños. Uno tenía una pluma de búho manchada de rojo.');
-    case 3: return '¡El cofre se abre! Dentro hay una piedra brillante.';
-    case 4: return F(fear,
-      '¡Toda la horda duerme! Y en el suelo hay un diente de dragón.',
-      '¡Toda la horda duerme! Entre los zombis hay un diente de dragón.',
-      '¡La horda ha caído! Entre los cuerpos dormidos hay un diente de dragón.');
+      '¡Los murciélagos se han ido! Uno ha dejado caer un colmillo.',
+      '¡Ningún murciélago queda en el aire! En el suelo hay un colmillo de murciélago.',
+      '¡Los murciélagos han caído! Entre las plumas negras hay un colmillo manchado de rojo.');
+    case 3: return 'El Doctor os ha dado el agua de luna. ¡Ya tenéis los 3 ingredientes!';
   }
   return '';
-}
-
-export function finalScareText(fear) {
-  return F(fear,
-    '¡Mirad! El Doctor Moho se ha convertido en zombi. ¡Abrid el maletín y curadle!',
-    '¡El Doctor Moho tiene los ojos blancos y la piel gris! ¡Abrid el maletín antes de que os alcance!',
-    '¡El Doctor Moho! Ojos blancos, la bata llena de sangre… ¡Se acerca! ¡Abrid el maletín YA!');
 }
 
 export function winText(fear) {
@@ -100,8 +98,8 @@ export function loseText(fear) {
 
 export const NAV_HINTS = {
   radar: [
-    'Mirad la palabra del radar: si pone «frío», os alejáis. Si pone «caliente», ¡vais bien!',
-    'Caminad 10 pasos en una dirección y mirad si se calienta o se enfría.',
+    'Cuando el barrido verde pasa, se enciende un punto: ¡el cofre está en esa dirección!',
+    'Si pone «frío», os alejáis. Si pone «caliente», ¡vais bien!',
   ],
   compass: [
     'Poned el móvil plano, como una bandeja, y caminad hacia donde apunta la flecha.',

@@ -280,6 +280,51 @@ export const audio = {
     for (let i = 0; i < 6; i++) this.tone(1500 + Math.random() * 1500, 0.12, 'sine', 0.12, null, i * 0.05);
   },
 
+  // Chillido de murciélago (varios pitidos agudos muy rápidos)
+  screech(vol = 0.35, pan = 0) {
+    if (!this.ok) return;
+    const t = ctx.currentTime;
+    const p = panner(pan);
+    p.connect(master);
+    for (let i = 0; i < 4; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sawtooth';
+      const st = t + i * 0.06;
+      o.frequency.setValueAtTime(3200 + Math.random() * 1500, st);
+      o.frequency.exponentialRampToValueAtTime(1800, st + 0.05);
+      env(g, st, 0.005, vol * (1 - i * 0.15), 0.06, 0.03);
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+      o.connect(hp).connect(g).connect(p);
+      o.start(st); o.stop(st + 0.08);
+    }
+  },
+  // Disparo (de broma: un «¡pum!» de luz)
+  shot() {
+    if (!this.ok) return;
+    const t = ctx.currentTime;
+    const n = noise(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(5000, t); lp.frequency.exponentialRampToValueAtTime(300, t + 0.25);
+    env(g, t, 0.002, 0.9, 0.3, 0.25);
+    n.connect(lp).connect(g).connect(master);
+    n.start(t); n.stop(t + 0.35);
+    this.tone(120, 0.25, 'sine', 0.6, 40);
+  },
+  creak() {
+    if (!this.ok) return;
+    const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain(), bp = ctx.createBiquadFilter();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(90, t); o.frequency.linearRampToValueAtTime(140, t + 0.6); o.frequency.linearRampToValueAtTime(70, t + 1);
+    bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 4;
+    env(g, t, 0.05, 0.4, 1, 0.3);
+    o.connect(bp).connect(g).connect(master);
+    o.start(t); o.stop(t + 1.05);
+  },
+  splash() {
+    if (!this.ok) return;
+    for (let i = 0; i < 6; i++) this.tone(300 + Math.random() * 500, 0.08, 'sine', 0.2, 900 + Math.random() * 600, i * 0.05);
+    this.radio(0.3, 0.2);
+  },
+
   // Voz del Doctor: audio grabado con voz natural (Piper) con efecto de walkie-talkie.
   // creepy = el Doctor se está convirtiendo: voz más grave, lenta y distorsionada.
   // Si no hay grabación (o no carga), usa la voz del móvil sin modificar el tono.

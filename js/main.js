@@ -179,11 +179,11 @@ function showHelp() {
   app.innerHTML = `
     <h2>❓ Cómo se juega</h2>
     <div class="panel">
-      <p><b>1.</b> Un adulto prepara el parque con el <b>Modo preparar</b>: camina y guarda 5 puntos separados al menos 25 m.</p>
+      <p><b>1.</b> Un adulto prepara el parque con el <b>Modo preparar</b>: camina y guarda 4 puntos separados al menos 25 m.</p>
       <p><b>2.</b> Ese móvil pulsa <b>Crear partida</b>. Los demás escanean el QR o escriben el código de 4 letras.</p>
       <p><b>3.</b> Cuando estéis todos, pulsad <b>Empezar la historia</b>. Tenéis 20 minutos.</p>
       <p><b>4.</b> Usad el radar o la brújula para llegar a cada punto y superad la prueba.</p>
-      <p><b>5.</b> Cada niño guarda algunos números del código final. Al final, ¡juntaos para abrir el maletín!</p>
+      <p><b>5.</b> Al final, en la mesa del laboratorio, tocad los 3 ingredientes para echarlos en el caldero y crear el antídoto.</p>
       <p>💡 Si os atascáis, pulsad <b>Pista</b>.</p>
     </div>
     <button id="b-sheet" class="small wide">📄 Hoja de instrucciones para el adulto</button>
@@ -241,9 +241,9 @@ function showCreate(test) {
   if (!parks.find((p) => p.id === parkId)) parkId = parks[0] && parks[0].id;
   app.innerHTML = `
     <h2>${test ? '🏠 Prueba en casa' : '🧟 Nueva partida'}</h2>
-    ${test ? '<div class="panel"><p>Los 5 puntos se inventan alrededor de ti y podrás «caminar» con botones. Otros móviles también pueden unirse para probar.</p></div>'
+    ${test ? '<div class="panel"><p>Los 4 puntos se inventan alrededor de ti y podrás «caminar» con botones. Otros móviles también pueden unirse para probar.</p></div>'
       : parks.length ? `<div class="panel"><p class="muted">Parque</p>${parks.map((p) => `<button class="opt park ${p.id === parkId ? 'sel' : ''}" data-id="${p.id}">🌳 ${esc(p.name)}</button>`).join('')}</div>`
-      : '<div class="panel"><p class="big">No hay ningún parque preparado.</p><p>Un adulto tiene que ir antes al parque con el <b>Modo preparar</b> y guardar 5 puntos.</p><button id="c-prep">📍 Ir al Modo preparar</button></div>'}
+      : '<div class="panel"><p class="big">No hay ningún parque preparado.</p><p>Un adulto tiene que ir antes al parque con el <b>Modo preparar</b> y guardar 4 puntos.</p><button id="c-prep">📍 Ir al Modo preparar</button></div>'}
     <div class="panel">
       <p class="muted">Nivel de miedo</p>
       <div class="fear-opts">
@@ -296,7 +296,7 @@ function showPrep() {
     app.innerHTML = `
       <h2>📍 Modo preparar</h2>
       <div class="panel">
-        <p>Camina por el parque y pulsa <b>Guardar este punto</b> en cada sitio donde quieras una prueba. Hacen falta <b>5 puntos</b>, separados al menos <b>25 m</b>. Mejor si forman un recorrido en círculo y lejos de calles.</p>
+        <p>Camina por el parque y pulsa <b>Guardar este punto</b> en cada sitio donde quieras una prueba. Hacen falta <b>4 puntos</b>, separados al menos <b>25 m</b>. Mejor si forman un recorrido en círculo y lejos de calles.</p>
         <p id="p-gps" class="big center">📡 Buscando GPS…</p>
       </div>
       <button class="primary" id="p-save" ${draft.points.length >= FINAL ? 'disabled' : ''}>📍 Guardar este punto (${draft.points.length}/${FINAL})</button>
@@ -343,7 +343,7 @@ function showPrep() {
         const p = store.get('parks', []).find((q) => q.id === x.dataset.redo);
         draft = { id: p.id, name: p.name, points: [] };
         save();
-        toast('Vuelve a guardar los 5 puntos de este parque.');
+        toast('Vuelve a guardar los 4 puntos de este parque.');
         draw();
       };
     });
@@ -448,11 +448,9 @@ function buildShell() {
     <section id="stage" class="stage"></section>
     <footer id="foot" class="foot">
       <button id="f-hint" class="hintbtn">💡 Pista</button>
-      <button id="f-nums">🔢 Mis números</button>
     </footer>`;
   $('#h-menu').onclick = openMenu;
   $('#f-hint').onclick = showHint;
-  $('#f-nums').onclick = openNumbers;
 }
 
 function viewKey(g) {
@@ -462,8 +460,8 @@ function viewKey(g) {
   if (remaining(g) <= 0) return 'lose';
   if (!S.local.intro) return 'intro';
   for (let s = 1; s <= N_ING; s++) if (g.solved && g.solved[s] && !S.local.reward[s]) return 'reward-' + s;
-  if (!(g.arrived && g.arrived[st])) return 'nav-' + st;
-  if (st === FINAL) return 'final';
+  // nav 'none': la propia prueba guía con la cámara (huellas, radar con zombis)
+  if (STATIONS[st].nav !== 'none' && !(g.arrived && g.arrived[st])) return 'nav-' + st;
   return 'ch-' + st + '-' + (S.local.ch[st] || 0);
 }
 
@@ -732,7 +730,8 @@ function viewNav(st, s) {
       $('.sweep', rad).style.transform = `rotate(${ang}deg)`;
       if (dotAngle == null) return;
       const diff = (ang - dotAngle + 360) % 360;
-      $('.target', rad).style.opacity = Math.max(0.08, 1 - diff / 300);
+      $('.target', rad).style.opacity = Math.max(0.35, 1 - diff / 300);
+      $('.target', rad).style.transform = `scale(${diff < 40 ? 1.5 - diff / 80 : 1})`;
       if (diff < lastSweep && !arrived) audio.tone(1500, 0.05, 'sine', 0.08);
       lastSweep = diff;
     }, 40);
@@ -823,10 +822,21 @@ function viewChallenge(st, s, i) {
     penalty: (ms) => S.link.push('penalties', ms),
     hordeAdd: () => { const cur = (S.g.horde && S.g.horde[S.me.id]) || 0; S.link.set(`horde/${S.me.id}`, Math.min(100, cur + 1)); },
     hordeTeam: () => Object.values(S.g.horde || {}).reduce((a, b) => a + (Number(b) || 0), 0),
+    target: g.points[s - 1],
+    arrive: () => { if (!(S.g.arrived && S.g.arrived[s])) S.link.set(`arrived/${s}`, true); },
+    isArrived: () => !!(S.g.arrived && S.g.arrived[s]),
   };
+  // En los puntos que se buscan con la cámara, el Doctor da el aviso aquí
+  if (STATIONS[s].nav === 'none' && !S.local.story[s] && i === 0) {
+    S.local.story[s] = true;
+    saveLocal();
+    setTimeout(() => { if (!signal.aborted) { audio.radio(0.5); audio.speak(story.stationText(s, g.fear), { creepy: s >= 3 && g.fear >= 2 }); } }, 500);
+  }
   const finish = () => {
     if (signal.aborted) return;
-    if (i + 1 < list.length) { S.local.ch[s] = i + 1; saveLocal(); render(); } else S.link.set(`solved/${s}`, true);
+    if (i + 1 < list.length) { S.local.ch[s] = i + 1; saveLocal(); render(); return; }
+    S.link.set(`solved/${s}`, true);
+    if (s === FINAL) S.link.set('finished', net.ts(S.link.local));
   };
   audio.drone(0.4);
   Promise.resolve(CH[name](wrap, ctx)).then(finish).catch((e) => { if (e.name !== 'AbortError') console.warn(e); });
@@ -845,15 +855,11 @@ function myDigitsHtml(g) {
 function viewReward(st, s) {
   const g = S.g;
   const ing = STATIONS[s].ing;
-  const o = digitOwner(g, s - 1);
   st.innerHTML = `
     <div class="panel reward center">
       <div class="ing-big">${ing.icon}</div>
       <h2>¡${ing.name}!</h2>
       <p class="big">${story.rewardText(s, g.fear)}</p>
-      <div class="digit-box">${o.id === S.me.id
-        ? `🔢 Tu número secreto:<div class="digit">${g.code[s - 1]}</div><p>Es el número <b>${s}</b> del código final. ¡Recuérdalo!</p>`
-        : `🔢 El número secreto ${s} lo guarda <b>${esc(o.nick)}</b>.`}</div>
     </div>
     <button class="primary" id="r-next">Continuar ➡️</button>`;
   audio.chime();
@@ -1003,7 +1009,13 @@ function openNumbers() {
 
 // ---------- arranque ----------
 function boot() {
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    // Si hay una versión nueva del juego, se instala y la página se recarga sola una vez
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded && !ar.active) { reloaded = true; location.reload(); } });
+  }
   const p = (params.get('p') || '').toUpperCase();
   const cur = store.get('current');
   if (/^[A-Z]{4}$/.test(p) && (!cur || cur.code !== p)) { showJoin(p, true); return; }

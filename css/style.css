@@ -136,7 +136,7 @@ h1.drip { position: relative; font-size: 2.8rem; font-weight: 900; }
 }
 .radar .rings { position: absolute; inset: 0; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 18%, rgba(255, 255, 255, .12) 18% 18.6%); }
 .radar .sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0 300deg, rgba(120, 255, 150, .45) 360deg); }
-.radar .target { position: absolute; width: 9%; aspect-ratio: 1; margin: -4.5% 0 0 -4.5%; border-radius: 50%; background: #fff; box-shadow: 0 0 14px 5px var(--heat); z-index: 2; }
+.radar .target { position: absolute; width: 15%; aspect-ratio: 1; margin: -7.5% 0 0 -7.5%; border-radius: 50%; background: radial-gradient(circle, #fff 0 35%, #ff3b3b 36% 100%); border: 3px solid #fff; box-shadow: 0 0 22px 8px rgba(255, 60, 60, .8); z-index: 2; }
 .radar .blip { position: absolute; left: 50%; top: 50%; width: 14%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: var(--heat); animation: blip var(--speed) ease-out infinite; }
 .radar .dir-arrow { position: absolute; inset: 0; display: grid; place-items: center; font-size: 6rem; color: #fff; text-shadow: 0 0 12px #000; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -254,6 +254,12 @@ canvas.rub { position: absolute; inset: 0; width: 100%; height: 100%; touch-acti
 @keyframes flashBite { 0% { opacity: 1; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } 100% { opacity: 0; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } }
 #ar-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 900; text-shadow: 0 2px 6px #000; pointer-events: none; }
 #ar-mode { font-size: .8rem; opacity: .7; align-self: center; }
+#ar-radar { --heat: #5ab0ff; position: absolute; right: 10px; top: calc(110px + env(safe-area-inset-top)); width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center; text-align: center; font-size: .9rem; font-weight: 900; color: var(--heat); background: radial-gradient(circle, rgba(0, 0, 0, .35), rgba(10, 40, 20, .85)); border: 3px solid var(--heat); box-shadow: 0 0 18px var(--heat); pointer-events: none; overflow: hidden; }
+#ar-radar b { position: relative; z-index: 1; padding: 0 6px; text-shadow: 0 1px 3px #000; }
+#ar-radar .pulse { position: absolute; inset: 35%; border-radius: 50%; background: var(--heat); opacity: .5; animation: rpulse 1.6s ease-out infinite; }
+@keyframes rpulse { from { transform: scale(.3); opacity: .8; } to { transform: scale(3); opacity: 0; } }
+#ar-test { position: absolute; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: center; }
+#ar-test button { background: rgba(30, 30, 40, .9); }
 #ar-diag { position: absolute; left: 6px; right: 6px; bottom: calc(150px + env(safe-area-inset-bottom)); margin: 0; padding: 6px 8px; font: 11px/1.35 monospace; color: #9f9; background: rgba(0, 0, 0, .7); border-radius: 8px; pointer-events: none; white-space: pre-wrap; z-index: 5; }
 .tap-ripple { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; border: 4px solid rgba(255, 210, 63, .95); pointer-events: none; animation: ripple .6s ease-out forwards; }
 @keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
