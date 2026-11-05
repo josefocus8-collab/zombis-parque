@@ -116,13 +116,19 @@ export async function find(el, ctx) {
           ar.setMsg('¡Ahí está! ¡Tócala!');
           if (fear >= 2) {
             zombie = makeZombie(fear);
-            const side = new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize().multiplyScalar(0.9);
-            zombie.position.copy(anchor.position).add(side);
+            // El zombi sale a un lado de la mochila (vista desde el móvil), a 1,4 m, para que no se tapen
+            const p = ar.camPos();
+            const dir = new THREE.Vector3(anchor.position.x - p.x, 0, anchor.position.z - p.z).normalize();
+            const perp = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(Math.random() < 0.5 ? 1.4 : -1.4);
+            zombie.position.copy(anchor.position).add(perp);
+            // Mientras el zombi esté despierto, la mochila no se puede coger: el toque solo duerme al zombi
+            ar.untap(anchor);
             ar.add(zombie, {
               floor: true,
               tap: (z) => {
                 z.userData.sleep();
                 ar.untap(z);
+                ar.tappables.add(anchor);
                 audio.growl(0.35, 0, 0.8);
                 vibrate(120);
                 ar.setMsg('💤 ¡Dormido! Ahora, ¡coge la mochila!');
@@ -139,8 +145,8 @@ export async function find(el, ctx) {
           ar.faceCamera(zombie);
           const d = ar.flatDist(zombie);
           const busy = zombie.userData.st.busyUntil > zombie.userData.st.t;
-          zombie.userData.st.walk = d > 1.4 ? 1 : 0;
-          if (d > 1.4 && !busy) {
+          zombie.userData.st.walk = d > 1.8 ? 1 : 0;
+          if (d > 1.8 && !busy) {
             const p = ar.camPos();
             const dir = new THREE.Vector3(p.x - zombie.position.x, 0, p.z - zombie.position.z).normalize();
             zombie.position.addScaledVector(dir, dt * 0.9);
