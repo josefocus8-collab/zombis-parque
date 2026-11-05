@@ -4,7 +4,7 @@
 // - Si no hay WebXR: cámara trasera de fondo + sensores de orientación (solo girar sobre uno mismo).
 // - En ordenador: arrastrar para mirar.
 import * as THREE from 'three';
-import { $, sleep, clamp } from './util.js';
+import { $, sleep, clamp, store } from './util.js';
 
 const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 const zee = new THREE.Vector3(0, 0, 1);
@@ -136,10 +136,14 @@ export class AR {
     }
     this.depthOn = !!(session.enabledFeatures && session.enabledFeatures.includes('depth-sensing') && session.depthUsage === 'cpu-optimized');
     this.occ.uniforms.uFloat.value = session.depthDataFormat === 'float32' ? 1 : 0;
-    // Suelo: se calcula una vez al principio y luego se queda fijo
-    this.floorY = -KID_EYE;
+    // Suelo: el círculo verde solo se pide la primera vez. Luego se recuerda a qué altura
+    // se lleva el móvil y se usa directamente (y se afina en silencio si el suelo se ve).
+    const h = store.get('floorH', null);
+    this.floorQuiet = typeof h === 'number' && h > 0.4 && h < 2.2;
+    this.floorY = this.floorQuiet ? -h : -KID_EYE;
     this.floorLocked = false;
     this.floorCands = [];
+    this.floorStart = performance.now();
     session.addEventListener('select', (e) => this.onSelect(e));
     session.addEventListener('end', () => {
       this.hitSource = null;
@@ -251,6 +255,8 @@ export class AR {
     if (!this.hitSource) return;
     const r = f.getHitTestResults(this.hitSource);
     this.reticle.visible = false;
+    // en modo silencioso solo se afina durante los primeros segundos
+    if (this.floorQuiet && performance.now() - this.floorStart > 6000) { this.floorLocked = true; return; }
     if (!r.length) return;
     const p = r[0].getPose(this.refSpace);
     if (!p) return;
@@ -258,7 +264,7 @@ export class AR {
     const up = UP.clone().applyQuaternion(new THREE.Quaternion(o.x, o.y, o.z, o.w));
     const y = p.transform.position.y, cy = this.camera.position.y;
     if (up.y < 0.9 || y > cy - 0.3 || y < cy - 2.3) return;
-    this.reticle.visible = true;
+    this.reticle.visible = !this.floorQuiet;
     this.reticle.position.set(p.transform.position.x, y + 0.005, p.transform.position.z);
     this.floorCands.push(y);
     if (this.floorCands.length >= 12) this.lockFloor();
@@ -268,7 +274,11 @@ export class AR {
     if (this.floorLocked) return;
     const c = [...(this.floorCands || [])].sort((a, b) => a - b);
     // el suelo es lo más bajo: nos quedamos con la parte baja de las lecturas
-    this.floorY = c.length ? c[Math.floor(c.length * 0.25)] : fallbackY ?? this.camera.position.y - KID_EYE;
+    const found = c.length ? c[Math.floor(c.length * 0.25)] : null;
+    if (found != null && (!this.floorQuiet || Math.abs(found - this.floorY) < 0.4)) {
+      this.floorY = found;
+      store.set('floorH', this.camera.position.y - found); // altura del móvil sobre el suelo
+    } else if (found == null && !this.floorQuiet) this.floorY = fallbackY ?? this.camera.position.y - KID_EYE;
     this.floorLocked = true;
     this.reticle.visible = false;
   }
@@ -555,7 +565,7 @@ if (uOn > 0.5) {
 
   // En RA: pedir que apunten al suelo hasta encontrarlo (máx. unos segundos)
   async waitFloor(ms = 7000) {
-    if (this.mode !== 'xr' || this.floorLocked) return;
+    if (this.mode !== 'xr' || this.floorLocked || this.floorQuiet) return;
     this.setMsg('📱 Apunta la cámara al suelo y muévela despacio hasta que salga un <b style="color:#7dff9a">círculo verde</b>');
     const t0 = Date.now();
     while (this.active && !this.floorLocked && Date.now() - t0 < ms) await sleep(100);
@@ -563,7 +573,34 @@ if (uOn > 0.5) {
     if (this.active) { this.setMsg('✅ ¡Suelo encontrado!'); await sleep(500); }
   }
 
-  setMsg(t) { $('#ar-msg').innerHTML = t || ''; $('#ar-msg').hidden = !t; }
+  // Aviso corto arriba. Se oculta solo a los 5 s (si se repite el mismo texto no vuelve a salir)
+  setMsg(t, ms = 5000) {
+    const el = $('#ar-msg');
+    if (t && t === this._msg) return;
+    this._msg = t || '';
+    el.innerHTML = t || '';
+    el.hidden = !t;
+    clearTimeout(this._msgT);
+    if (t && ms) this._msgT = setTimeout(() => { el.hidden = true; }, ms);
+  }
+
+  // Espera a que delante haya un sitio despejado (sin árboles ni bancos) usando el sensor de profundidad
+  async findClearSpot(minDist = 3, ms = 12000) {
+    if (this.mode !== 'xr' || !this.depthCpu) return false;
+    const t0 = Date.now();
+    let ok = 0;
+    while (this.active && Date.now() - t0 < ms) {
+      let min = Infinity, valid = 0;
+      for (const fx of [0.3, 0.5, 0.7]) for (const fy of [0.38, 0.5]) {
+        const d = this.depthAt(innerWidth * fx, innerHeight * fy);
+        if (d > 0.3) { valid++; min = Math.min(min, d); }
+      }
+      ok = valid >= 4 && min > minDist ? ok + 1 : 0;
+      if (ok >= 10) return true;
+      await sleep(80);
+    }
+    return false;
+  }
   setCount(t) { $('#ar-count').textContent = t || ''; }
   toast(t, ms = 3500) {
     const el = $('#ar-toast');
@@ -624,6 +661,7 @@ if (uOn > 0.5) {
     this.dark(false);
     this.arrow(null);
     this.setMsg('');
+    this._msg = '';
     this.setCount('');
     this.mode = null;
     return wasActive;

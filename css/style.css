@@ -218,9 +218,11 @@ canvas.rub { position: absolute; inset: 0; width: 100%; height: 100%; touch-acti
 #toast, #ar-toast {
   position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom)); transform: translate(-50%, 30px);
   width: min(92vw, 520px); padding: 14px 16px; border-radius: 16px; background: rgba(15, 15, 20, .95); border: 2px solid var(--gold);
+  max-height: 30vh; overflow: hidden;
   color: var(--fg); font-size: 1.15rem; text-align: center; opacity: 0; transition: .3s; pointer-events: none; z-index: 130;
 }
 #toast.show, #ar-toast.show { opacity: 1; transform: translate(-50%, 0); }
+#ar-toast { font-size: .95rem; padding: 8px 12px; }
 
 .scare { position: fixed; inset: 0; z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; animation: scareIn .15s ease-out, flicker .12s 6; padding: 16px; text-align: center; }
 .scare .scare-face { width: min(95vw, 70vh); height: auto; animation: lunge 1.3s ease-in; }
@@ -266,7 +268,7 @@ canvas.rub { position: absolute; inset: 0; width: 100%; height: 100%; touch-acti
 .tap-cam { cursor: pointer; border: 3px dashed var(--gold); animation: glowcam 1.4s infinite; text-align: center; }
 .tap-cam .cam-big { font-size: 5rem; }
 @keyframes glowcam { 50% { box-shadow: 0 0 30px rgba(255, 210, 63, .45); } }
-#ar-msg { position: absolute; top: calc(52px + env(safe-area-inset-top)); left: 12px; right: 12px; text-align: center; font-size: 1.3rem; font-weight: 800; padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, .6); pointer-events: none; }
+#ar-msg { position: absolute; top: calc(46px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); max-width: 84%; text-align: center; font-size: .95rem; font-weight: 700; padding: 6px 12px; border-radius: 12px; background: rgba(0, 0, 0, .5); pointer-events: none; }
 #ar-cross { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px; border: 3px solid rgba(255, 255, 255, .7); border-radius: 50%; pointer-events: none; }
 #ar-arrow { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; font-weight: 900; padding: 12px; background: rgba(255, 210, 63, .9); color: #000; border-radius: 14px; pointer-events: none; animation: nudge .8s infinite; }
 #ar-arrow.left { left: 8px; } #ar-arrow.right { right: 8px; }

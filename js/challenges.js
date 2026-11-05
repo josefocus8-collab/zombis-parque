@@ -956,12 +956,14 @@ export async function doctor(el, ctx) {
           ar.untap(doc);
           doc.userData.play('hurt');
           const txt = story.doctorText(fear);
-          ar.setMsg('🗣️ ' + txt);
-          const t0 = Date.now();
-          await audio.speak(txt, { creepy: fear >= 3 });
-          // si no hay sonido, dejar tiempo para leerlo
-          const readMs = txt.length * 55 - (Date.now() - t0);
-          if (readMs > 0) await sleep(readMs);
+          if (audio.enabled) {
+            // con sonido no hace falta tapar la pantalla con el texto
+            ar.setMsg('🗣️ El Doctor te está hablando…', 3000);
+            await audio.speak(txt, { creepy: fear >= 3 });
+          } else {
+            ar.setMsg('🗣️ ' + txt, 0);
+            await sleep(txt.length * 55);
+          }
           doc.userData.play('idle');
           await collectItem(c, cl, 3, '🧪 ¡Toca el agua de luna para cogerla!');
           res('done');
@@ -1105,8 +1107,11 @@ function zombiePath({ ar, audio, fear }, cl, ctx) {
 }
 
 function mixLab({ ar, audio }, cl) {
-  return new Promise((res) => {
-    ar.setMsg('⚗️ ' + story.LAB_TEXT);
+  return new Promise(async (res) => {
+    ar.setMsg('📱 Apunta al frente, a un sitio despejado…', 0);
+    // la mesa se coloca solo cuando delante hay al menos 3 m libres (sin árboles ni bancos)
+    await ar.findClearSpot(3, 12000);
+    ar.setMsg(audio.enabled ? '⚗️ ¡El laboratorio!' : '⚗️ ' + story.LAB_TEXT);
     audio.speak(story.LAB_TEXT);
     const table = makeLabTable();
     table.position.copy(ar.posAt(0, 2.3));
