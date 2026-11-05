@@ -10,7 +10,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js" } }
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }
   </script>
   <script type="module" src="js/main.js"></script>
 </head>
@@ -23,7 +23,7 @@
     <div id="ar-ui">
       <div id="ar-dark" hidden></div>
       <div id="ar-flash"></div>
-      <div id="ar-top" class="noxr"><span id="ar-timer"></span><span id="ar-count"></span></div>
+      <div id="ar-top" class="noxr"><span id="ar-timer"></span><span id="ar-mode"></span><span id="ar-count"></span></div>
       <div id="ar-msg" hidden></div>
       <div id="ar-cross"></div>
       <div id="ar-arrow" hidden></div>

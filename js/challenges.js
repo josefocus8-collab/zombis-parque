@@ -1,29 +1,37 @@
 // Las pruebas del juego
 import * as THREE from 'three';
 import { $, $$, h, rand, randInt, pick, shuffle, sleep, vibrate, onShake, waitClick, abortError } from './util.js';
-import { makeZombie, makeBackpack, makeHandprint, makeGlowRing } from './models.js';
+import { makeZombie, makeBackpack, makeHandprint, makeGlowRing, preloadZombies } from './models.js';
 
 const F = (fear, a, b, c) => (fear >= 3 ? c : fear >= 2 ? b : a);
 const biteMs = (fear) => (fear >= 3 ? 20000 : fear >= 2 ? 10000 : 0);
 
 // ---------- Pruebas con cámara ----------
 async function arChallenge(el, ctx, info, run) {
+  const models = preloadZombies(ctx.fear); // se descargan mientras leen la tarjeta
   for (;;) {
+    // Toda la tarjeta es el botón: un solo toque en cualquier parte abre la cámara
+    // (el navegador no deja abrirla sin que el usuario toque la pantalla)
     el.innerHTML = `
-      <div class="panel challenge">
+      <div class="panel challenge tap-cam" id="open-cam" role="button" tabindex="0">
         <div class="ch-icon">${info.icon}</div>
         <h2>${info.title}</h2>
         <p class="big">${info.text}</p>
+        <div class="cam-big">📷</div>
+        <p class="big"><b>¡Toca aquí para abrir la cámara!</b></p>
       </div>
-      <button class="primary" id="open-cam">📷 Abrir la cámara</button>
-      <p class="muted center">Si el móvil pide permiso para la cámara, pulsa «Permitir».</p>`;
+      <p class="muted center">Si el móvil pide permiso para la cámara o la realidad aumentada, pulsa «Permitir».</p>`;
+    vibrate([150, 80, 150]);
     await waitClick($('#open-cam', el), ctx.signal);
     ctx.audio.unlock();
     const cl = [];
     let result = 'exit';
     try {
-      $('#open-cam', el).disabled = true;
+      $('#open-cam', el).style.pointerEvents = 'none';
       await ctx.ar.open();
+      ctx.ar.setMsg('⏳ Despertando a los zombis…');
+      await Promise.race([models, sleep(8000)]);
+      ctx.ar.setMsg('');
       result = await new Promise((res, rej) => {
         cl.push(ctx.ar.onExit(() => rej(new Error('exit'))));
         const ab = () => rej(abortError());
@@ -117,6 +125,7 @@ export async function find(el, ctx) {
                 ar.setMsg('💤 ¡Dormido! Ahora, ¡coge la mochila!');
               },
             });
+            if (zombie.userData.special) zombie.userData.special(Math.random() < 0.5 ? 'rise' : 'scream');
             audio.scream(fear >= 3 ? 0.9 : 0.6);
             vibrate([250, 80, 350]);
             ar.flash('red');
@@ -126,8 +135,9 @@ export async function find(el, ctx) {
         if (zombie && !zombie.userData.asleep) {
           ar.faceCamera(zombie);
           const d = ar.flatDist(zombie);
+          const busy = zombie.userData.st.busyUntil > zombie.userData.st.t;
           zombie.userData.st.walk = d > 1.4 ? 1 : 0;
-          if (d > 1.4) {
+          if (d > 1.4 && !busy) {
             const p = ar.camPos();
             const dir = new THREE.Vector3(p.x - zombie.position.x, 0, p.z - zombie.position.z).normalize();
             zombie.position.addScaledVector(dir, dt * 0.9);
@@ -211,7 +221,7 @@ export async function flashlight(el, ctx) {
           const a = ar.angleTo(z);
           if (a < nd) { nd = a; nearest = z; }
           if (a < 0.24 && !flicker) {
-            if (z.userData.lit === 0) { audio.growl(0.7, -Math.sin(ar.relYaw(z))); vibrate(60); }
+            if (z.userData.lit === 0) { audio.growl(0.7, -Math.sin(ar.relYaw(z))); vibrate(60); if (z.userData.special) z.userData.special('scream'); }
             z.userData.lit += dt;
             z.userData.st.lunge = Math.min(1, z.userData.lit);
             if (z.userData.lit > 1.1) {

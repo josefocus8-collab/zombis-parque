@@ -244,6 +244,10 @@ canvas.rub { position: absolute; inset: 0; width: 100%; height: 100%; touch-acti
 @keyframes flashGold { 0% { opacity: 1; background: rgba(255, 220, 120, .6); } 100% { opacity: 0; background: rgba(255, 220, 120, .6); } }
 @keyframes flashBite { 0% { opacity: 1; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } 100% { opacity: 0; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } }
 #ar-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 900; text-shadow: 0 2px 6px #000; pointer-events: none; }
+#ar-mode { font-size: .8rem; opacity: .6; align-self: center; }
+.tap-cam { cursor: pointer; border: 3px dashed var(--gold); animation: glowcam 1.4s infinite; text-align: center; }
+.tap-cam .cam-big { font-size: 5rem; }
+@keyframes glowcam { 50% { box-shadow: 0 0 30px rgba(255, 210, 63, .45); } }
 #ar-msg { position: absolute; top: calc(52px + env(safe-area-inset-top)); left: 12px; right: 12px; text-align: center; font-size: 1.3rem; font-weight: 800; padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, .6); pointer-events: none; }
 #ar-cross { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px; border: 3px solid rgba(255, 255, 255, .7); border-radius: 50%; pointer-events: none; }
 #ar-arrow { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; font-weight: 900; padding: 12px; background: rgba(255, 210, 63, .9); color: #000; border-radius: 14px; pointer-events: none; animation: nudge .8s infinite; }

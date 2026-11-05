@@ -7,6 +7,7 @@ import * as story from './story.js';
 import { STATIONS, ROLES, FEAR_NAMES, NAV_HINTS } from './story.js';
 import { AR } from './ar.js';
 import * as CH from './challenges.js';
+import { preloadZombies } from './models.js';
 import qrcode from 'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs';
 
 const GAME_MS = 45 * 60000;
@@ -556,7 +557,7 @@ function radioView(st, title, text, { onDone, btnLabel, creepy } = {}) {
     const typed = typeText($('.typed', st), text, signal);
     await sleep(500);
     if (signal.aborted) return;
-    await Promise.all([typed, audio.speak(text, creepy ? { pitch: 0.45, rate: 0.85 } : {})]);
+    await Promise.all([typed, audio.speak(text, { creepy: !!creepy && S.g.fear >= 2 })]);
     if (signal.aborted) return;
     if (creepy && S.g.fear >= 3) audio.growl(0.5);
     $('#i-play').hidden = false;
@@ -694,6 +695,7 @@ function viewNav(st, s) {
   S.cleanup.push(() => clearInterval(pulse));
   audio.drone(0.4);
   scheduleScares(s);
+  preloadZombies(g.fear); // los zombis se descargan mientras caminan
 }
 
 // Sustos mientras se camina
@@ -811,6 +813,7 @@ function viewReward(st, s) {
     <button class="primary" id="r-next">Continuar ➡️</button>`;
   audio.chime();
   vibrate([100, 50, 100, 50, 200]);
+  setTimeout(() => { if (S.view === 'reward-' + s) audio.speak(story.rewardText(s, g.fear)); }, 900);
   $('#r-next').onclick = () => { S.local.reward[s] = true; saveLocal(); render(); };
 }
 
@@ -834,6 +837,7 @@ async function viewFinal(st) {
   if (!S.local.finalScare) {
     S.local.finalScare = true;
     saveLocal();
+    setTimeout(() => audio.speak(story.finalScareText(g.fear), { creepy: g.fear >= 2 }), 1300);
     await jumpScare(story.finalScareText(g.fear));
     if (signal.aborted) return;
   }
@@ -880,6 +884,7 @@ function viewWin(st) {
   const left = g.finished ? g.startedAt + GAME_MS - penalties(g) - g.finished : remaining(g);
   audio.stopAll();
   audio.win();
+  setTimeout(() => { if (S.view === 'win') audio.speak(story.winText(g.fear)); }, 1500);
   vibrate([100, 50, 100, 50, 100, 50, 400]);
   document.body.classList.remove('fog-heavy');
   st.innerHTML = `
@@ -899,6 +904,7 @@ function viewLose(st) {
   const g = S.g;
   audio.drone(0.9);
   audio.growl(0.9);
+  setTimeout(() => { if (S.view === 'lose') audio.speak(story.loseText(g.fear)); }, 1200);
   st.innerHTML = `
     <div class="panel center lose">
       <div class="ch-icon">🌫️</div>

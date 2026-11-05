@@ -1,5 +1,7 @@
 // Modelos 3D hechos con código: zombis, mochila, huellas...
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
@@ -146,7 +148,118 @@ function textSprite(text, size = 0.35) {
 
 const SHIRTS = ['#3d4f6b', '#6b3d3d', '#55603a', '#5a4a6b', '#6b5a3d', '#4a6b66'];
 
+// ---------- Zombis realistas (modelos 3D de Mixamo con animaciones) ----------
+const ZFILES = { cop: 'models/zombie_cop.glb', girl: 'models/zombie_girl.glb', war: 'models/zombie_war.glb' };
+const zPromises = {};
+const zLoaded = {};
+
+function loadZombieModel(kind) {
+  if (!zPromises[kind]) {
+    zPromises[kind] = new GLTFLoader().loadAsync(ZFILES[kind]).then((g) => { zLoaded[kind] = g; return g; });
+  }
+  return zPromises[kind];
+}
+
+// Carga los modelos según el nivel de miedo (el soldado es el más sangriento: solo en Terror)
+export function preloadZombies(fear) {
+  const kinds = fear >= 3 ? ['war', 'cop', 'girl'] : ['cop', 'girl'];
+  return Promise.allSettled(kinds.map(loadZombieModel));
+}
+
+let _shadowTex = null;
+function contactShadow() {
+  _shadowTex = _shadowTex || canvasTex(64, 64, (g) => {
+    const gr = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(0,0,0,0.65)');
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 64, 64);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshBasicMaterial({ map: _shadowTex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = 0.01;
+  return m;
+}
+
+function makeRealZombie(fear, kinds) {
+  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+  const g = zLoaded[kind];
+  const model = SkeletonUtils.clone(g.scene);
+  const root = new THREE.Group();
+  const box = new THREE.Box3().setFromObject(model);
+  const h = box.max.y - box.min.y;
+  const s = (kind === 'girl' ? 1.62 : 1.78) / h;
+  model.scale.multiplyScalar(s);
+  model.position.y = -box.min.y * s;
+  model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+  root.add(model);
+  root.add(contactShadow());
+  const zzz = textSprite('💤', 0.5);
+  zzz.position.set(0, 0.5, 0);
+  zzz.visible = false;
+  root.add(zzz);
+
+  const mixer = new THREE.AnimationMixer(model);
+  const clips = Object.fromEntries(g.animations.map((c) => [c.name, c]));
+  const actions = {};
+  const act = (n) => (clips[n] ? (actions[n] = actions[n] || mixer.clipAction(clips[n])) : null);
+  let current = act('idle');
+  current.time = Math.random() * clips.idle.duration;
+  current.play();
+  const play = (name, { once = false, fade = 0.35 } = {}) => {
+    const a = act(name);
+    if (!a || a === current) return a;
+    a.reset();
+    a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+    a.clampWhenFinished = once;
+    a.play();
+    current.crossFadeTo(a, fade, false);
+    current = a;
+    return a;
+  };
+
+  const st = { t: 0, walk: 0, lunge: 0, state: 'idle', anim: 'idle', busyUntil: 0 };
+  root.userData = {
+    real: true,
+    center: new THREE.Vector3(0, 1.0, 0),
+    tapSeg: [new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(0, 1.6, 0)],
+    radius: 0.35,
+    st,
+    sleep() {
+      if (st.state === 'down') return;
+      st.state = 'down';
+      st.t = 0;
+      play('death', { once: true, fade: 0.15 });
+    },
+    get asleep() { return st.state === 'down'; },
+    // Gritar o levantarse del suelo (para los sustos)
+    special(name) {
+      const a = play(name, { once: true, fade: 0.1 });
+      if (a) st.busyUntil = st.t + clips[name].duration - 0.2;
+      return !!a;
+    },
+    animate(dt) {
+      st.t += dt;
+      if (st.state === 'down') {
+        if (st.t > 1.8) { zzz.visible = true; zzz.position.y = 0.5 + Math.sin(st.t * 2) * 0.1; }
+      } else if (st.t > st.busyUntil) {
+        const want = st.walk > 0.5 ? 'walk' : st.lunge > 0.5 && clips.attack ? 'attack' : 'idle';
+        if (want !== st.anim || current !== actions[want]) { st.anim = want; play(want); }
+      }
+      mixer.update(dt);
+    },
+  };
+  return root;
+}
+
 export function makeZombie(fear = 3, opts = {}) {
+  const kinds = Object.keys(zLoaded).filter((k) => fear >= 3 || k !== 'war');
+  if (kinds.length && !opts.procedural) return makeRealZombie(fear, kinds);
+  return makeBlockZombie(fear, opts);
+}
+
+// Zombi hecho con cajas (si no se han podido cargar los modelos)
+function makeBlockZombie(fear = 3, opts = {}) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -220,7 +333,8 @@ export function makeZombie(fear = 3, opts = {}) {
   const st = { t: Math.random() * 10, walk: 0, down: 0, state: 'idle', lunge: 0 };
   root.userData = {
     center: new THREE.Vector3(0, 1.1, 0),
-    radius: 0.55 * s,
+    tapSeg: [new THREE.Vector3(0, 0.4, 0), new THREE.Vector3(0, 1.65, 0)],
+    radius: 0.35,
     st,
     sleep() { if (st.state !== 'down') { st.state = 'down'; st.down = 0; } },
     get asleep() { return st.state === 'down'; },

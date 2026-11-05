@@ -1,7 +1,10 @@
 // Sonidos generados por el propio móvil (sin archivos): música de tensión, latidos, gruñidos, gritos...
+import { voiceKey, voiceClean } from './voice.js';
 let ctx = null, master = null, noiseBuf = null;
 let droneNodes = null, hbTimer = null, hbRate = 0;
 let enabled = true;
+let speakId = 0, currentVoice = null;
+const voiceCache = new Map();
 
 function noise() {
   if (!noiseBuf) {
@@ -277,20 +280,59 @@ export const audio = {
     for (let i = 0; i < 6; i++) this.tone(1500 + Math.random() * 1500, 0.12, 'sine', 0.12, null, i * 0.05);
   },
 
-  // Voz del Doctor (síntesis de voz del móvil)
-  speak(text, { pitch = 0.75, rate = 0.95 } = {}) {
-    return new Promise((res) => {
-      if (!enabled || !('speechSynthesis' in window)) return res();
+  // Voz del Doctor: audio grabado con voz natural (Piper) con efecto de walkie-talkie.
+  // creepy = el Doctor se está convirtiendo: voz más grave, lenta y distorsionada.
+  // Si no hay grabación (o no carga), usa la voz del móvil sin modificar el tono.
+  async speak(text, { creepy = false } = {}) {
+    this.stopSpeak();
+    if (!enabled) return;
+    const my = ++speakId;
+    try {
+      if (!ctx) throw new Error('sin audio');
+      const key = voiceKey(text);
+      let buf = voiceCache.get(key);
+      if (!buf) {
+        const r = await fetch(`audio/voz/${key}.mp3`);
+        if (!r.ok) throw new Error('sin grabación');
+        buf = await ctx.decodeAudioData(await r.arrayBuffer());
+        voiceCache.set(key, buf);
+      }
+      if (my !== speakId) return;
+      const t = ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = creepy ? 0.86 : 1;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 280;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = creepy ? 3000 : 3800;
+      const g = ctx.createGain(); g.gain.value = 1.15;
+      let node = src.connect(hp).connect(lp);
+      if (creepy) node = node.connect(distortion(25));
+      node.connect(g).connect(master);
+      // ruido de radio de fondo
+      const n = noise(), nb = ctx.createBiquadFilter(), ng = ctx.createGain();
+      nb.type = 'bandpass'; nb.frequency.value = 2000; nb.Q.value = 0.6;
+      ng.gain.value = 0.025;
+      n.connect(nb).connect(ng).connect(master);
+      const dur = buf.duration / src.playbackRate.value;
+      src.start(t + 0.05);
+      n.start(t);
+      n.stop(t + dur + 0.3);
+      currentVoice = { src, n };
+      await new Promise((res) => { src.onended = res; setTimeout(res, dur * 1000 + 1500); });
+      currentVoice = null;
+      return;
+    } catch { /* uso la voz del móvil */ }
+    if (my !== speakId || !('speechSynthesis' in window)) return;
+    await new Promise((res) => {
       try {
-        speechSynthesis.cancel();
-        const clean = text.replace(/<[^>]+>/g, ' ').replace(/[*_🍄🪶💎🧪🦷🌸🧟📻🔦]/gu, '');
+        const clean = voiceClean(text.replace(/<[^>]+>/g, ' '));
         const u = new SpeechSynthesisUtterance(clean);
         u.lang = 'es-ES';
         const voices = speechSynthesis.getVoices();
-        const v = voices.find((x) => x.lang === 'es-ES') || voices.find((x) => x.lang && x.lang.startsWith('es'));
+        const v = voices.find((x) => x.lang === 'es-ES' && /google/i.test(x.name)) || voices.find((x) => x.lang === 'es-ES') || voices.find((x) => x.lang && x.lang.startsWith('es'));
         if (v) u.voice = v;
-        u.pitch = pitch;
-        u.rate = rate;
+        u.pitch = 1;
+        u.rate = creepy ? 0.9 : 1;
         let done = false;
         const fin = () => { if (!done) { done = true; res(); } };
         u.onend = fin;
@@ -300,6 +342,10 @@ export const audio = {
       } catch { res(); }
     });
   },
-  stopSpeak() { try { speechSynthesis.cancel(); } catch { /* nada */ } },
+  stopSpeak() {
+    speakId++;
+    if (currentVoice) { try { currentVoice.src.stop(); currentVoice.n.stop(); } catch { /* ya parado */ } currentVoice = null; }
+    try { speechSynthesis.cancel(); } catch { /* nada */ }
+  },
   stopAll() { this.heartbeat(0); this.stopDrone(); this.stopSpeak(); },
 };
