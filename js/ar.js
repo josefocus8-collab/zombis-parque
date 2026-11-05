@@ -109,8 +109,10 @@ export class AR {
     if (!el) return;
     const depthNow = this.depthTime && performance.now() - this.depthTime < 1500;
     el.textContent = this.mode === 'xr' ? (depthNow ? 'RA+' : 'RA') : this.mode === 'orient' ? '📷' : '🖱️';
+    const dg = $('#ar-diag');
+    if (dg) { dg.hidden = !this.diagOn; if (this.diagOn) dg.textContent = this.diagText(); }
     clearTimeout(this._badgeT);
-    if (this.active) this._badgeT = setTimeout(() => this.badge(), 1000);
+    if (this.active) this._badgeT = setTimeout(() => this.badge(), this.diagOn ? 400 : 1000);
   }
 
   async startXR() {
@@ -200,7 +202,7 @@ export class AR {
       c.position.y = this.floorY;
       if (!c.userData.fitted && this.depthCpu) this.fitInRoom(c);
     }
-    for (const u of this.updaters) { try { u(dt); } catch (e) { console.warn(e); } }
+    for (const u of this.updaters) { try { u(dt); } catch (e) { this.diagError(e); } }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -214,23 +216,32 @@ export class AR {
   }
 
   // Si un objeto ha quedado "dentro" de una pared o un mueble, lo acerca hasta delante del obstáculo.
-  // Se hace una sola vez, la primera vez que el objeto aparece en pantalla.
+  // Se comprueba varias veces durante los primeros 12 s que el objeto está a la vista
+  // (al principio el sensor tarda en dar medidas buenas).
   fitInRoom(obj) {
-    const c = this.centerOf(obj);
-    const s = this.toScreen(c);
+    const ud = obj.userData, now = performance.now();
+    const s = this.toScreen(this.centerOf(obj));
     if (!s || s.x < 0 || s.y < 0 || s.x > innerWidth || s.y > innerHeight) return;
-    obj.userData.fitted = true;
-    // mirar varios puntos alrededor del centro y quedarse con el obstáculo más cercano
-    let real = Infinity;
-    for (const [dx, dy] of [[0, 0], [-25, 0], [25, 0], [0, -30], [0, 30]]) {
+    ud.seenAt = ud.seenAt || now;
+    if (now - ud.seenAt > 12000) { ud.fitted = true; return; }
+    if (now - (ud.lastFit || 0) < 150) return;
+    ud.lastFit = now;
+    // varios puntos alrededor del centro del objeto; se ignoran lecturas vacías o muy cercanas (manos)
+    const vals = [];
+    for (const [dx, dy] of [[0, 0], [-30, 0], [30, 0], [0, -40], [0, 40], [-20, 20], [20, -20]]) {
       const r = this.depthAt(s.x + dx, s.y + dy);
-      if (r > 0.3) real = Math.min(real, r);
+      if (r > 0.6) vals.push(r);
     }
+    this.lastFitInfo = { vals: vals.length, obj: s.dist };
+    if (vals.length < 3) return;
+    vals.sort((a, b) => a - b);
+    const real = vals[Math.floor(vals.length / 2)]; // mediana: distancia "en línea recta" desde la cámara
+    if (real > s.dist - 0.3) { ud.behind = 0; return; }
+    ud.behind = (ud.behind || 0) + 1;
+    if (ud.behind < 3) return; // tiene que repetirse para fiarse
+    ud.behind = 0;
+    const k = Math.max(0.9, real - 0.45) / s.dist;
     const p = this.camPos();
-    const dist = Math.hypot(obj.position.x - p.x, obj.position.z - p.z);
-    if (!isFinite(real) || real > dist - 0.3) return;
-    const nd = Math.max(0.9, real - 0.45);
-    const k = nd / dist;
     obj.position.x = p.x + (obj.position.x - p.x) * k;
     obj.position.z = p.z + (obj.position.z - p.z) * k;
   }
@@ -373,6 +384,19 @@ if (uOn > 0.5) {
       this.tapAt(e.clientX, e.clientY);
     });
     this.ui.addEventListener('pointercancel', () => { down = false; });
+    // En realidad aumentada algunos móviles no mandan "pointer": se escuchan también touch y click
+    this.ui.addEventListener('touchend', (e) => {
+      this.diagCount('touch');
+      if (e.target.closest('button,.noxr') || !this.active) return;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (t) this.tapAt(t.clientX, t.clientY);
+    }, { passive: true });
+    this.ui.addEventListener('click', (e) => {
+      this.diagCount('click');
+      if (e.target.closest('button,.noxr') || !this.active) return;
+      this.tapAt(e.clientX, e.clientY);
+    });
+    this.ui.addEventListener('pointerdown', () => this.diagCount('pointer'), true);
     addEventListener('keydown', (e) => {
       if (this.mode !== 'drag' || !this.active) return;
       if (e.key === 'ArrowLeft') this.yaw += 0.15;
@@ -384,6 +408,7 @@ if (uOn > 0.5) {
 
   // Toque en RA: se convierte el rayo del dedo en un punto de la pantalla
   onSelect(e) {
+    this.diagCount('select');
     const pose = e.frame.getPose(e.inputSource.targetRaySpace, this.refSpace);
     if (!pose) return;
     const m = new THREE.Matrix4().fromArray(pose.transform.matrix);
@@ -437,7 +462,27 @@ if (uOn > 0.5) {
       if (score < 1 && score < bestScore) { best = obj; bestScore = score; }
     }
     best = best || near;
-    if (best && best.userData.onTap) best.userData.onTap(best);
+    this.lastTapInfo = { x: Math.round(x), y: Math.round(y), n: this.tappables.size, hit: !!best, depth: this.depthAt(x, y) };
+    if (best && best.userData.onTap) {
+      try { best.userData.onTap(best); } catch (e) { this.diagError(e); }
+    }
+  }
+
+  // ---------- Modo diagnóstico (abrir la web con ?diag=1) ----------
+  diagCount(k) { this.diag = this.diag || {}; this.diag[k] = (this.diag[k] || 0) + 1; }
+  diagError(e) { this.diagErr = String((e && e.message) || e).slice(0, 80); console.warn(e); }
+  diagText() {
+    const d = this.diag || {}, t = this.lastTapInfo, f = this.lastFitInfo;
+    const center = this.depthAt(innerWidth / 2, innerHeight / 2);
+    const cam = this.camPos();
+    return [
+      `modo ${this.mode} · prof ${this.depthTime && performance.now() - this.depthTime < 1500 ? 'sí' : 'no'} · centro ${center.toFixed(2)} m`,
+      `suelo ${this.floorY.toFixed(2)} · cámara y ${cam.y.toFixed(2)} · fijado ${this.floorLocked ? 'sí' : 'no'}`,
+      `toques: pointer ${d.pointer || 0} · touch ${d.touch || 0} · click ${d.click || 0} · select ${d.select || 0}`,
+      t ? `último toque ${t.x},${t.y} · objetos ${t.n} · acierto ${t.hit ? 'sí' : 'no'} · prof ${t.depth.toFixed(2)} m` : 'sin toques',
+      f ? `pared: lecturas ${f.vals} · objeto a ${f.obj.toFixed(2)} m` : '',
+      this.diagErr ? `error: ${this.diagErr}` : '',
+    ].filter(Boolean).join('\n');
   }
 
   // Círculo donde se ha tocado (para ver que el toque ha llegado)

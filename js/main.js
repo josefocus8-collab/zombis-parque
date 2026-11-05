@@ -17,6 +17,9 @@ const app = $('#app');
 const ar = new AR();
 const params = new URLSearchParams(location.search);
 if (params.has('noxr')) ar.noXR = true;
+// Modo diagnóstico: ?diag=1 lo activa (se recuerda), ?diag=0 lo quita
+if (params.has('diag')) store.set('diag', params.get('diag') !== '0');
+ar.diagOn = !!store.get('diag', false);
 
 const S = { me: null, link: null, g: null, view: null, local: null, cleanup: [], abort: null, hints: [], hintIdx: 0, timers: [] };
 S.me = store.get('me');
