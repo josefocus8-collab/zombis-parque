@@ -188,7 +188,7 @@ function makeRealZombie(fear, kinds) {
   const root = new THREE.Group();
   const box = new THREE.Box3().setFromObject(model);
   const h = box.max.y - box.min.y;
-  const s = (kind === 'girl' ? 1.78 : 1.92) / h;
+  const s = 1.6 / h; // todos los zombis miden 1,60 m
   model.scale.multiplyScalar(s);
   model.position.y = -box.min.y * s;
   model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
@@ -328,7 +328,7 @@ function makeBlockZombie(fear = 3, opts = {}) {
   zzz.visible = false;
   root.add(zzz);
 
-  const s = opts.scale || 1;
+  const s = opts.scale || 0.9; // 1,60 m
   root.scale.setScalar(s);
   const st = { t: Math.random() * 10, walk: 0, down: 0, state: 'idle', lunge: 0 };
   root.userData = {

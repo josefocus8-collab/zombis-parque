@@ -626,7 +626,7 @@ function viewNav(st, s) {
     </div>
     <div class="panel radio nav-msg" id="n-msg" role="button" tabindex="0">📻 <span>${esc(msg.replace(/…?\s*ksshh\s*…?/gi, '').trim())}</span> <small class="muted">🔁</small></div>
     ${type === 'radar'
-      ? `<div class="radar" id="n-radar"><div class="sweep"></div><div class="rings"></div><div class="blip"></div><div class="dir-arrow" hidden>⬆</div></div>`
+      ? `<div class="radar" id="n-radar"><div class="sweep"></div><div class="rings"></div><div class="blip"></div><div class="target" hidden></div><div class="dir-arrow" hidden>⬆</div></div>`
       : `<div class="compass" id="n-compass"><div class="rose"><span class="n">N</span></div><div class="needle">⬆</div></div>`}
     <p class="nav-status center" id="n-status">…</p>
     <p class="muted center" id="n-gps"></p>
@@ -669,7 +669,7 @@ function viewNav(st, s) {
       };
     });
   }
-  let arrived = false, lastPulse = 0, d = Infinity;
+  let arrived = false, lastPulse = 0, d = Infinity, dotAngle = null, lastSweep = 0;
   const update = () => {
     const status = $('#n-status', st), gps = $('#n-gps', st);
     if (!status) return;
@@ -690,6 +690,13 @@ function viewNav(st, s) {
       const arr = $('.dir-arrow', rad);
       arr.hidden = Date.now() > showDirUntil;
       arr.style.transform = `rotate(${brg - (geo.heading || 0)}deg)`;
+      // punto del objetivo: dirección real y, cuanto más lejos, más hacia el borde
+      dotAngle = ((brg - (geo.heading || 0)) % 360 + 360) % 360;
+      const r = clamp(d / 100, 0.15, 0.9) * 50;
+      const dot = $('.target', rad);
+      dot.hidden = false;
+      dot.style.left = 50 + Math.sin((dotAngle * Math.PI) / 180) * r + '%';
+      dot.style.top = 50 - Math.cos((dotAngle * Math.PI) / 180) * r + '%';
     } else {
       const rel = brg - (geo.heading || 0);
       $('.needle', st).style.transform = `rotate(${rel}deg)`;
@@ -716,6 +723,21 @@ function viewNav(st, s) {
     vibrate(d < 15 ? [90, 60, 90] : d < 30 ? 70 : 40);
   }, 150);
   S.cleanup.push(() => clearInterval(pulse));
+  // barrido del radar: al pasar por encima del objetivo, el punto se enciende y se va apagando
+  if (type === 'radar') {
+    const sw = setInterval(() => {
+      const rad = $('#n-radar', st);
+      if (!rad) return;
+      const ang = ((performance.now() / 2400) * 360) % 360;
+      $('.sweep', rad).style.transform = `rotate(${ang}deg)`;
+      if (dotAngle == null) return;
+      const diff = (ang - dotAngle + 360) % 360;
+      $('.target', rad).style.opacity = Math.max(0.08, 1 - diff / 300);
+      if (diff < lastSweep && !arrived) audio.tone(1500, 0.05, 'sine', 0.08);
+      lastSweep = diff;
+    }, 40);
+    S.cleanup.push(() => clearInterval(sw));
+  }
   audio.drone(0.4);
   scheduleScares(s);
   preloadZombies(g.fear); // los zombis se descargan mientras caminan

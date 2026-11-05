@@ -585,10 +585,11 @@ if (uOn > 0.5) {
     el.className = rel > 0 ? 'left' : 'right';
     el.textContent = rel > 0 ? '⬅️ ¡Por aquí!' : '¡Por aquí! ➡️';
   }
-  dark(on, holeVmin = 0) {
+  // Oscuridad con un círculo de luz en el centro; size = radio en % del lado largo de la pantalla
+  dark(on, size = 0) {
     const el = $('#ar-dark');
     el.hidden = !on;
-    el.style.setProperty('--hole', (holeVmin || -7) + 'vmin');
+    el.style.setProperty('--hole', size ? size + 'vmax' : '-7vmin');
   }
   async torch(on) {
     try {

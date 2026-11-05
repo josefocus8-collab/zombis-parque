@@ -155,6 +155,7 @@ export async function find(el, ctx) {
 // 2. Linterna: agitar para encender y alumbrar zombis en la oscuridad
 export async function flashlight(el, ctx) {
   const { fear } = ctx;
+  const HOLE = 40; // radio del círculo de luz, en % del lado largo de la pantalla (casi toda)
   let arrowUntil = 0;
   ctx.setHints([
     'Agita el móvil con fuerza, como un bote de ketchup. Si no funciona, espera y saldrá un botón.',
@@ -193,7 +194,7 @@ export async function flashlight(el, ctx) {
       if (on) return;
       on = true;
       btn.hidden = true;
-      ar.dark(true, 30);
+      ar.dark(true, HOLE);
       ar.torch(true);
       audio.click();
       vibrate(80);
@@ -215,15 +216,18 @@ export async function flashlight(el, ctx) {
         const now = performance.now();
         if (fear >= 3 && now > flickerAt) { flickerEnd = now + 450; flickerAt = now + rand(9000, 16000); audio.whisper(); }
         const flicker = now < flickerEnd;
-        ar.dark(true, flicker ? (Math.random() < 0.5 ? 0 : 12) : 30);
+        const holePx = (HOLE / 100) * Math.max(innerWidth, innerHeight);
+        ar.dark(true, flicker ? (Math.random() < 0.5 ? 0 : HOLE / 3) : HOLE);
         let awake = 0, nearest = null, nd = Infinity;
         for (const z of zombies) {
           if (z.userData.asleep) continue;
           awake++;
           ar.faceCamera(z);
           const a = ar.angleTo(z);
+          const sp = ar.toScreen(ar.centerOf(z));
+          const inLight = !!sp && Math.hypot(sp.x - innerWidth / 2, sp.y - innerHeight / 2) < holePx * 0.85;
           if (a < nd) { nd = a; nearest = z; }
-          if (a < 0.24 && !flicker) {
+          if (inLight && !flicker) {
             if (z.userData.lit === 0) { audio.growl(0.7, -Math.sin(ar.relYaw(z))); vibrate(60); if (z.userData.special) z.userData.special('scream'); }
             z.userData.lit += dt;
             z.userData.st.lunge = Math.min(1, z.userData.lit);
