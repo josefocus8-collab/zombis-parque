@@ -4,13 +4,13 @@ import { audio } from './audio.js';
 import { geo } from './geo.js';
 import { net } from './net.js';
 import * as story from './story.js';
-import { STATIONS, ROLES, FEAR_NAMES, NAV_HINTS } from './story.js';
+import { STATIONS, ROLES, FEAR_NAMES, NAV_HINTS, N_ING, FINAL } from './story.js';
 import { AR } from './ar.js';
 import * as CH from './challenges.js';
 import { preloadZombies } from './models.js';
 import qrcode from 'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.mjs';
 
-const GAME_MS = 45 * 60000;
+const GAME_MS = 20 * 60000;
 const ARRIVE_M = 12;
 const MIN_SEP = 25;
 const app = $('#app');
@@ -107,10 +107,11 @@ function setFearClass(f) {
 // ---------- estado de la partida ----------
 const saveLocal = () => store.set('local_' + S.link.code, S.local);
 const now = () => (S.link && !S.link.local ? net.now() : Date.now());
-const station = (g) => { for (let s = 1; s <= 7; s++) if (!(g.solved && g.solved[s])) return s; return 8; };
+const station = (g) => { for (let s = 1; s <= FINAL; s++) if (!(g.solved && g.solved[s])) return s; return FINAL + 1; };
 const penalties = (g) => Object.values(g.penalties || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 const remaining = (g) => (g.startedAt ? g.startedAt + GAME_MS - penalties(g) - (g.finished || now()) : GAME_MS);
-const solvedCount = (g) => [1, 2, 3, 4, 5, 6].filter((s) => g.solved && g.solved[s]).length;
+const ING = Array.from({ length: N_ING }, (_, i) => i + 1);
+const solvedCount = (g) => ING.filter((s) => g.solved && g.solved[s]).length;
 
 function players(g, onlyActive) {
   const t = now();
@@ -132,8 +133,8 @@ function digitOwner(g, i) {
 
 function genTestPoints(base) {
   const pts = [];
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2;
+  for (let i = 0; i < FINAL; i++) {
+    const a = (i / FINAL) * Math.PI * 2;
     pts.push(offsetLatLng(base, Math.sin(a) * 60, Math.cos(a) * 60));
   }
   return pts;
@@ -146,6 +147,9 @@ function centroid(pts) {
 function showHome() {
   setFearClass(0);
   const cur = store.get('current');
+  // Botón rápido: último parque usado (o el único que haya)
+  const parks = store.get('parks', []).filter((p) => p.points.length >= FINAL);
+  const quick = parks.find((p) => p.id === store.get('parkSel')) || (parks.length === 1 ? parks[0] : null);
   app.innerHTML = `
     <div class="title-wrap">
       <div class="title-zombie">🧟</div>
@@ -153,7 +157,8 @@ function showHome() {
       <p class="center muted">Escape room de zombis para el parque</p>
     </div>
     ${cur ? `<button class="green" id="b-resume">↩️ Volver a la partida ${esc(cur.code)}</button>` : ''}
-    <button class="primary" id="b-create">🧟 Crear partida</button>
+    ${quick ? `<button class="primary big-play" id="b-play">▶️ Jugar<small>${esc(quick.name)} · nivel ${FEAR_NAMES[store.get('fear', 3)]}</small></button>` : ''}
+    <button class="${quick ? '' : 'primary'}" id="b-create">🧟 ${quick ? 'Otra partida (cambiar parque o miedo)' : 'Crear partida'}</button>
     <button id="b-join">📲 Unirme a una partida</button>
     <div class="spacer"></div>
     <div class="panel">
@@ -163,6 +168,7 @@ function showHome() {
     </div>`;
   if (cur) $('#b-resume').onclick = () => enterGame(net.link(cur.code, cur.local));
   $('#b-create').onclick = () => showCreate(false);
+  if (quick) $('#b-play').onclick = async () => { $('#b-play').disabled = true; $('#b-play').firstChild.textContent = '⏳ Creando…'; await createAndEnter(false, quick, store.get('fear', 3)); };
   $('#b-join').onclick = () => showJoin('');
   $('#b-prep').onclick = showPrep;
   $('#b-test').onclick = () => showCreate(true);
@@ -173,9 +179,9 @@ function showHelp() {
   app.innerHTML = `
     <h2>❓ Cómo se juega</h2>
     <div class="panel">
-      <p><b>1.</b> Un adulto prepara el parque con el <b>Modo preparar</b>: camina y guarda 7 puntos separados al menos 25 m.</p>
+      <p><b>1.</b> Un adulto prepara el parque con el <b>Modo preparar</b>: camina y guarda 5 puntos separados al menos 25 m.</p>
       <p><b>2.</b> Ese móvil pulsa <b>Crear partida</b>. Los demás escanean el QR o escriben el código de 4 letras.</p>
-      <p><b>3.</b> Cuando estéis todos, pulsad <b>Empezar la historia</b>. Tenéis 45 minutos.</p>
+      <p><b>3.</b> Cuando estéis todos, pulsad <b>Empezar la historia</b>. Tenéis 20 minutos.</p>
       <p><b>4.</b> Usad el radar o la brújula para llegar a cada punto y superad la prueba.</p>
       <p><b>5.</b> Cada niño guarda algunos números del código final. Al final, ¡juntaos para abrir el maletín!</p>
       <p>💡 Si os atascáis, pulsad <b>Pista</b>.</p>
@@ -229,15 +235,15 @@ function quickPos(ms) {
 }
 
 function showCreate(test) {
-  const parks = store.get('parks', []).filter((p) => p.points.length >= 7);
+  const parks = store.get('parks', []).filter((p) => p.points.length >= FINAL);
   let fear = store.get('fear', 3);
   let parkId = store.get('parkSel');
   if (!parks.find((p) => p.id === parkId)) parkId = parks[0] && parks[0].id;
   app.innerHTML = `
     <h2>${test ? '🏠 Prueba en casa' : '🧟 Nueva partida'}</h2>
-    ${test ? '<div class="panel"><p>Los 7 puntos se inventan alrededor de ti y podrás «caminar» con botones. Otros móviles también pueden unirse para probar.</p></div>'
+    ${test ? '<div class="panel"><p>Los 5 puntos se inventan alrededor de ti y podrás «caminar» con botones. Otros móviles también pueden unirse para probar.</p></div>'
       : parks.length ? `<div class="panel"><p class="muted">Parque</p>${parks.map((p) => `<button class="opt park ${p.id === parkId ? 'sel' : ''}" data-id="${p.id}">🌳 ${esc(p.name)}</button>`).join('')}</div>`
-      : '<div class="panel"><p class="big">No hay ningún parque preparado.</p><p>Un adulto tiene que ir antes al parque con el <b>Modo preparar</b> y guardar 7 puntos.</p><button id="c-prep">📍 Ir al Modo preparar</button></div>'}
+      : '<div class="panel"><p class="big">No hay ningún parque preparado.</p><p>Un adulto tiene que ir antes al parque con el <b>Modo preparar</b> y guardar 5 puntos.</p><button id="c-prep">📍 Ir al Modo preparar</button></div>'}
     <div class="panel">
       <p class="muted">Nivel de miedo</p>
       <div class="fear-opts">
@@ -256,22 +262,27 @@ function showCreate(test) {
   if ($('#c-prep')) $('#c-prep').onclick = showPrep;
   $('#b-back').onclick = showHome;
   $('#c-go').onclick = async () => {
-    audio.unlock();
     $('#c-go').disabled = true;
     $('#c-msg').textContent = 'Creando la partida…';
-    let points;
-    if (test) {
-      const base = (await quickPos(3000)) || { lat: 40.4168, lng: -3.7038 };
-      points = genTestPoints(base);
-    } else {
-      points = parks.find((p) => p.id === parkId).points.slice(0, 7).map((p) => ({ lat: p.lat, lng: p.lng }));
-    }
-    const code = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join('');
-    const link = await net.createGame({ startedAt: 0, fear, test: !!test, code, points });
-    store.del('local_' + link.code);
-    enterGame(link, { creator: true });
-    if (link.local && net.enabled) toast('📡 No hay internet: la partida será solo en este móvil.', 6000);
+    await createAndEnter(test, parks.find((p) => p.id === parkId), fear);
   };
+}
+
+// Crea la partida y entra (lo usan «Crear partida» y el botón rápido «Jugar»)
+async function createAndEnter(test, park, fear) {
+  audio.unlock();
+  let points;
+  if (test) {
+    const base = (await quickPos(3000)) || { lat: 40.4168, lng: -3.7038 };
+    points = genTestPoints(base);
+  } else {
+    points = park.points.slice(0, FINAL).map((p) => ({ lat: p.lat, lng: p.lng }));
+  }
+  const code = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join('');
+  const link = await net.createGame({ startedAt: 0, fear, test: !!test, code, points });
+  store.del('local_' + link.code);
+  enterGame(link, { creator: true });
+  if (link.local && net.enabled) toast('📡 No hay internet: la partida será solo en este móvil.', 6000);
 }
 
 // ---------- Modo preparar ----------
@@ -285,13 +296,13 @@ function showPrep() {
     app.innerHTML = `
       <h2>📍 Modo preparar</h2>
       <div class="panel">
-        <p>Camina por el parque y pulsa <b>Guardar este punto</b> en cada sitio donde quieras una prueba. Hacen falta <b>7 puntos</b>, separados al menos <b>25 m</b>. Mejor si forman un recorrido en círculo y lejos de calles.</p>
+        <p>Camina por el parque y pulsa <b>Guardar este punto</b> en cada sitio donde quieras una prueba. Hacen falta <b>5 puntos</b>, separados al menos <b>25 m</b>. Mejor si forman un recorrido en círculo y lejos de calles.</p>
         <p id="p-gps" class="big center">📡 Buscando GPS…</p>
       </div>
-      <button class="primary" id="p-save" ${draft.points.length >= 7 ? 'disabled' : ''}>📍 Guardar este punto (${draft.points.length}/7)</button>
+      <button class="primary" id="p-save" ${draft.points.length >= FINAL ? 'disabled' : ''}>📍 Guardar este punto (${draft.points.length}/${FINAL})</button>
       <div class="panel"><ol class="pts">${draft.points.map((p, i) => `<li>Punto ${i + 1} <span class="muted">(±${Math.round(p.acc)} m)</span> <span class="pd" data-i="${i}"></span> <button class="small" data-del="${i}">🗑️</button></li>`).join('') || '<p class="muted">Aún no hay puntos.</p>'}</ol></div>
       <input id="p-name" placeholder="Nombre del parque" value="${esc(draft.name)}" maxlength="30">
-      <button class="green" id="p-park" ${draft.points.length < 7 ? 'disabled' : ''}>💾 Guardar parque</button>
+      <button class="green" id="p-park" ${draft.points.length < FINAL ? 'disabled' : ''}>💾 Guardar parque</button>
       ${parks.length ? `<div class="panel"><p class="muted">Parques guardados</p>${parks.map((p) => `<div class="park-row"><span>🌳 ${esc(p.name)} (${p.points.length})</span><button class="small" data-redo="${p.id}">✏️ Rehacer</button><button class="small" data-rm="${p.id}">🗑️</button></div>`).join('')}</div>` : ''}
       <button id="b-back" class="small">⬅️ Volver</button>`;
     $('#b-back').onclick = () => { off(); showHome(); };
@@ -317,7 +328,7 @@ function showPrep() {
       const parks2 = store.get('parks', []);
       const name = (draft.name || '').trim() || `Parque ${parks2.length + 1}`;
       const id = draft.id || uid(8);
-      const park = { id, name, points: draft.points.slice(0, 7) };
+      const park = { id, name, points: draft.points.slice(0, FINAL) };
       const idx = parks2.findIndex((p) => p.id === id);
       if (idx >= 0) parks2[idx] = park; else parks2.push(park);
       store.set('parks', parks2);
@@ -332,7 +343,7 @@ function showPrep() {
         const p = store.get('parks', []).find((q) => q.id === x.dataset.redo);
         draft = { id: p.id, name: p.name, points: [] };
         save();
-        toast('Vuelve a guardar los 7 puntos de este parque.');
+        toast('Vuelve a guardar los 5 puntos de este parque.');
         draw();
       };
     });
@@ -417,7 +428,7 @@ function onGame(g, cached) {
       // Primero marcar la llegada tardía: al escribir, Firebase avisa al instante y se vuelve a dibujar
       if (g.startedAt) {
         S.local.joinedLate = true;
-        for (let s = 1; s <= 7; s++) if (g.solved && g.solved[s]) { S.local.story[s] = true; S.local.reward[s] = true; }
+        for (let s = 1; s <= FINAL; s++) if (g.solved && g.solved[s]) { S.local.story[s] = true; S.local.reward[s] = true; }
         saveLocal();
       }
       S.link.set(`players/${S.me.id}`, { nick: S.me.nick, joined: net.ts(S.link.local), seen: net.ts(S.link.local) });
@@ -430,7 +441,7 @@ function buildShell() {
   app.innerHTML = `
     <header id="hud" class="hud">
       <div class="timer" id="h-timer">45:00</div>
-      <div class="ings" id="h-ings">${[1, 2, 3, 4, 5, 6].map((s) => `<span data-s="${s}">${STATIONS[s].ing.icon}</span>`).join('')}</div>
+      <div class="ings" id="h-ings">${ING.map((s) => `<span data-s="${s}">${STATIONS[s].ing.icon}</span>`).join('')}</div>
       <div class="dot" id="h-dot"></div>
       <button class="small icon" id="h-menu" aria-label="Menú">⚙️</button>
     </header>
@@ -447,13 +458,12 @@ function buildShell() {
 function viewKey(g) {
   const st = station(g);
   if (!g.startedAt) return 'lobby';
-  if (g.finished || st > 7) return 'win';
+  if (g.finished || st > FINAL) return 'win';
   if (remaining(g) <= 0) return 'lose';
   if (!S.local.intro) return 'intro';
-  for (let s = 1; s <= 6; s++) if (g.solved && g.solved[s] && !S.local.reward[s]) return 'reward-' + s;
-  if (!S.local.story[st]) return 'story-' + st;
+  for (let s = 1; s <= N_ING; s++) if (g.solved && g.solved[s] && !S.local.reward[s]) return 'reward-' + s;
   if (!(g.arrived && g.arrived[st])) return 'nav-' + st;
-  if (st === 7) return 'final';
+  if (st === FINAL) return 'final';
   return 'ch-' + st + '-' + (S.local.ch[st] || 0);
 }
 
@@ -498,8 +508,8 @@ function updateHud() {
   const r = remaining(g);
   const t = $('#h-timer');
   t.textContent = g.startedAt ? fmtTime(r) : '45:00';
-  t.classList.toggle('low', g.startedAt && r < 5 * 60000);
-  document.body.classList.toggle('fog-heavy', !!g.startedAt && r < 5 * 60000 && !g.finished);
+  t.classList.toggle('low', g.startedAt && r < 3 * 60000);
+  document.body.classList.toggle('fog-heavy', !!g.startedAt && r < 3 * 60000 && !g.finished);
   $$('#h-ings span').forEach((s) => s.classList.toggle('got', !!(g.solved && g.solved[s.dataset.s])));
   const dot = $('#h-dot');
   dot.hidden = S.link.local;
@@ -578,7 +588,7 @@ function viewIntro(st) {
   const text = late ? story.lateText(g.fear, solvedCount(g), Math.ceil(remaining(g) / 60000)) : story.introText(g.fear);
   radioView(st, late ? '¡Bienvenido a la Patrulla!' : 'Mensaje del Doctor Moho', text, {
     btnLabel: '¡Vamos! ➡️',
-    onDone: () => { S.local.intro = true; saveLocal(); render(); },
+    onDone: () => { S.local.intro = true; S.local.story[1] = !late; saveLocal(); render(); },
   });
   st.insertAdjacentHTML('beforeend', `<div class="panel center"><p>Tu nombre en clave: <b>${esc(S.me.nick)}</b></p><p>Tu rol: <b>${roleOf(g, S.me.id)}</b></p></div>`);
 }
@@ -608,11 +618,13 @@ function viewNav(st, s) {
   const leader = act[(s - 1) % act.length] || { id: S.me.id, nick: S.me.nick };
   const leadTxt = act.length <= 1 ? '' : leader.id === S.me.id ? `👑 ¡Te toca dirigir! Lleva al equipo con ${type === 'radar' ? 'el radar' : 'la brújula'}.` : `👑 Dirige <b>${esc(leader.nick)}</b>. ¡Seguidle y ayudadle!`;
   let showDirUntil = 0;
+  const msg = story.stationText(s, g.fear);
   st.innerHTML = `
     <div class="nav-head center">
-      <h2>${s === 7 ? '🧪 Al laboratorio' : `Ingrediente ${s} de 6`}</h2>
+      <h2>${s === FINAL ? '🧪 Al laboratorio' : `Ingrediente ${s} de ${N_ING}`}</h2>
       ${leadTxt ? `<p class="lead">${leadTxt}</p>` : ''}
     </div>
+    <div class="panel radio nav-msg" id="n-msg" role="button" tabindex="0">📻 <span>${esc(msg.replace(/…?\s*ksshh\s*…?/gi, '').trim())}</span> <small class="muted">🔁</small></div>
     ${type === 'radar'
       ? `<div class="radar" id="n-radar"><div class="sweep"></div><div class="rings"></div><div class="blip"></div><div class="dir-arrow" hidden>⬆</div></div>`
       : `<div class="compass" id="n-compass"><div class="rose"><span class="n">N</span></div><div class="needle">⬆</div></div>`}
@@ -626,6 +638,14 @@ function viewNav(st, s) {
       </div>
       <div class="row"><button class="small" data-m="tl">↺ Girar</button><button class="small" data-m="jump">⏩ Ir al punto</button><button class="small" data-m="tr">Girar ↻</button></div>
     </div>` : ''}`;
+  // El Doctor habla aquí mismo (sin pantalla aparte). Tocar el mensaje lo repite.
+  const sayIt = () => { audio.unlock(); audio.radio(0.5); audio.speak(msg, { creepy: s >= 3 && g.fear >= 2 }); };
+  $('#n-msg', st).onclick = sayIt;
+  if (!S.local.story[s]) {
+    S.local.story[s] = true;
+    saveLocal();
+    if (s !== 1 || S.local.joinedLate) setTimeout(() => { if (S.view === 'nav-' + s) sayIt(); }, 400);
+  }
   setHints([
     ...NAV_HINTS[type],
     {
@@ -792,7 +812,7 @@ function viewChallenge(st, s, i) {
 
 function myDigitsHtml(g) {
   const out = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < N_ING; i++) {
     const got = g.solved && g.solved[i + 1];
     const o = digitOwner(g, i);
     out.push(`<div class="nd ${got && o.id === S.me.id ? 'mine' : ''}"><small>${i + 1}</small><b>${!got ? '❓' : o.id === S.me.id ? g.code[i] : '👤'}</b><small>${!got ? 'falta' : o.id === S.me.id ? 'tuyo' : esc(o.nick)}</small></div>`);
@@ -825,14 +845,14 @@ async function viewFinal(st) {
   const signal = S.abort.signal;
   setHints([
     'Cada móvil tiene algunos números. Pulsad «🔢 Mis números» en todos los móviles y decidlos en voz alta.',
-    'El número 1 salió con la seta, el 2 con la pluma, el 3 con la piedra, el 4 con el agua, el 5 con el diente y el 6 con la flor.',
+    'El número 1 salió con la seta, el 2 con la pluma, el 3 con la piedra y el 4 con el diente.',
     { text: () => `El primer número del código es ${S.g.code[0]}.` },
   ]);
   st.innerHTML = `
     <div class="panel center">
       <div class="ch-icon">🧳</div>
       <h2>El maletín del antídoto</h2>
-      <p>Juntaos todos. Cada uno dice sus números en voz alta. Escribidlos en orden: 1, 2, 3, 4, 5, 6.</p>
+      <p>Juntaos todos. Cada uno dice sus números en voz alta. Escribidlos en orden: 1, 2, 3 y 4.</p>
       ${myDigitsHtml(g)}
     </div>
     <div class="kp"></div>`;
@@ -848,7 +868,7 @@ async function viewFinal(st) {
   kpEl.innerHTML = '';
   let tries = 0;
   const kp = makeCodePad(kpEl, (v) => {
-    if (v === S.g.code) {
+    if (v === S.g.code.slice(0, N_ING)) {
       audio.win();
       S.link.set('solved/7', true);
       S.link.set('finished', net.ts(S.link.local));
@@ -866,7 +886,7 @@ async function viewFinal(st) {
 
 function makeCodePad(el, onSubmit) {
   let val = '';
-  el.innerHTML = `<div class="code-slots">${'<span></span>'.repeat(6)}</div><div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✔'].map((k) => `<button data-k="${k}" class="${k === '✔' ? 'green' : ''}">${k}</button>`).join('')}</div>`;
+  el.innerHTML = `<div class="code-slots">${'<span></span>'.repeat(N_ING)}</div><div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✔'].map((k) => `<button data-k="${k}" class="${k === '✔' ? 'green' : ''}">${k}</button>`).join('')}</div>`;
   const slots = $$('.code-slots span', el);
   const show = () => slots.forEach((s, i) => { s.textContent = val[i] || ''; });
   el.addEventListener('click', (e) => {
@@ -875,8 +895,8 @@ function makeCodePad(el, onSubmit) {
     audio.click();
     const k = b.dataset.k;
     if (k === '⌫') val = val.slice(0, -1);
-    else if (k === '✔') { if (val.length === 6) onSubmit(val); else toast('Faltan números: son 6.'); return; }
-    else if (val.length < 6) val += k;
+    else if (k === '✔') { if (val.length === N_ING) onSubmit(val); else toast(`Faltan números: son ${N_ING}.`); return; }
+    else if (val.length < N_ING) val += k;
     show();
   });
   return { clear() { val = ''; show(); }, shake() { const c = $('.code-slots', el); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); } };
@@ -914,9 +934,9 @@ function viewLose(st) {
       <h1 class="blood">¡La niebla os ha alcanzado!</h1>
       <p class="big">${story.loseText(g.fear)}</p>
     </div>
-    <button class="primary" id="l-more">🧪 Usar el frasco de emergencia (+5 minutos)</button>
+    <button class="primary" id="l-more">🧪 Usar el frasco de emergencia (+3 minutos)</button>
     <button class="small" id="l-home">🏠 Terminar la partida</button>`;
-  $('#l-more').onclick = () => { $('#l-more').disabled = true; S.link.push('penalties', -5 * 60000); audio.sparkle(); };
+  $('#l-more').onclick = () => { $('#l-more').disabled = true; S.link.push('penalties', -3 * 60000); audio.sparkle(); };
   $('#l-home').onclick = exitGame;
 }
 

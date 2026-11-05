@@ -534,7 +534,7 @@ if (uOn > 0.5) {
   add(obj, { tap, floor } = {}) {
     obj.userData.dyn = true;
     if (floor) { obj.userData.floor = true; obj.position.y = this.floorY; }
-    this.patchOcclusion(obj);
+    if (this.occlusion) this.patchOcclusion(obj); // apagado: se toca la pantalla, no hace falta
     this.scene.add(obj);
     if (tap) { obj.userData.onTap = tap; this.tappables.add(obj); }
     if (obj.userData.animate) { const a = obj.userData.animate; obj.userData._upd = (dt) => a(dt); this.updaters.add(obj.userData._upd); }

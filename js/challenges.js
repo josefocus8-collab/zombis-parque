@@ -78,17 +78,20 @@ export async function find(el, ctx) {
     await ar.waitFloor();
     ar.setMsg('🔎 Busca la mochila en el suelo… ¡gira a tu alrededor!');
     audio.drone(0.55);
-    const anchor = anchorAt(ar, (Math.random() < 0.5 ? 1 : -1) * rand(1.7, 2.8), rand(2, 2.7));
-    anchor.add(makeBackpack(fear));
+    const anchor = anchorAt(ar, (Math.random() < 0.5 ? 1 : -1) * rand(1.7, 2.8), rand(1.5, 2.1));
+    const bag = makeBackpack(fear);
+    bag.scale.setScalar(1.7);
+    anchor.add(bag);
     const ring = makeGlowRing();
+    ring.scale.setScalar(1.5);
     anchor.add(ring);
     if (fear >= 2) for (let i = 0; i < (fear >= 3 ? 7 : 3); i++) {
       const hp = makeHandprint();
       hp.position.set(rand(-1, 1), 0.015, rand(-1, 1));
       anchor.add(hp);
     }
-    anchor.userData.center = new THREE.Vector3(0, 0.25, 0);
-    anchor.userData.radius = 0.5;
+    anchor.userData.center = new THREE.Vector3(0, 0.4, 0);
+    anchor.userData.radius = 0.7;
     ar.faceCamera(anchor);
     let zombie = null, seen = false, nextGrowl = 0;
     return new Promise((res) => {
@@ -179,7 +182,7 @@ export async function flashlight(el, ctx) {
       const base = rand(0.9, 2.6) * (Math.random() < 0.5 ? 1 : -1);
       for (let i = 0; i < n; i++) {
         const z = makeZombie(fear);
-        z.position.copy(ar.posAt(base + (i * 2 * Math.PI) / Math.max(n, 2) + rand(-0.3, 0.3), rand(2.6, 3.6)));
+        z.position.copy(ar.posAt(base + (i * 2 * Math.PI) / Math.max(n, 2) + rand(-0.3, 0.3), rand(2.0, 2.8)));
         z.userData.lit = 0;
         ar.add(z, { floor: true });
         ar.faceCamera(z);
@@ -254,8 +257,8 @@ export async function flashlight(el, ctx) {
 // 5. La horda: tocar zombis que se acercan
 export async function horde(el, ctx) {
   const { fear } = ctx;
-  const target = ctx.players > 1 ? Math.min(30, 5 * ctx.players) : 8;
-  const myGoal = 8;
+  const target = ctx.players > 1 ? Math.min(20, 4 * ctx.players) : 6;
+  const myGoal = 6;
   ctx.setHints([
     'Gira sobre ti mismo: vienen de todas partes. La flecha te dice dónde está el más cercano.',
     'Toca a cada zombi en la pantalla antes de que llegue hasta ti.',
@@ -277,7 +280,7 @@ export async function horde(el, ctx) {
     const spawn = () => {
       const z = makeZombie(fear);
       const rel = spawned < 2 ? rand(-0.5, 0.5) : rand(-Math.PI, Math.PI);
-      z.position.copy(ar.posAt(rel, rand(5, 6.5)));
+      z.position.copy(ar.posAt(rel, rand(4, 5)));
       z.userData.speed = rand(...speed);
       z.userData.nextGrowl = performance.now() + rand(500, 2500);
       z.userData.st.walk = 1;
@@ -411,12 +414,12 @@ function mathChallenge(el, ctx, { icon, title, text, problems, opSign }) {
 }
 
 export function sums(el, ctx) {
-  const problems = [[randInt(3, 9), randInt(3, 9)], [randInt(12, 39), randInt(3, 9)], [randInt(11, 45), randInt(11, 40)]];
+  const problems = [[randInt(3, 9), randInt(3, 9)], [randInt(12, 39), randInt(3, 9)]];
   return mathChallenge(el, ctx, {
     icon: '🧰', title: 'El cofre cerrado', opSign: '+', problems,
-    text: F(ctx.fear, 'El cofre tiene 3 candados. Resuelve las sumas para abrirlos.',
-      'El cofre tiene arañazos por todas partes. Tiene 3 candados: resuelve las sumas para abrirlos.',
-      'El cofre está lleno de arañazos y huellas de manos rojas. Tiene 3 candados: resuelve las sumas, rápido.'),
+    text: F(ctx.fear, 'El cofre tiene 2 candados. Resuelve las sumas para abrirlos.',
+      'El cofre tiene arañazos por todas partes. Tiene 2 candados: resuelve las sumas para abrirlos.',
+      'El cofre está lleno de arañazos y huellas de manos rojas. Tiene 2 candados: resuelve las sumas, rápido.'),
   });
 }
 

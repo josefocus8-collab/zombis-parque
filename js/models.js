@@ -188,7 +188,7 @@ function makeRealZombie(fear, kinds) {
   const root = new THREE.Group();
   const box = new THREE.Box3().setFromObject(model);
   const h = box.max.y - box.min.y;
-  const s = (kind === 'girl' ? 1.62 : 1.78) / h;
+  const s = (kind === 'girl' ? 1.78 : 1.92) / h;
   model.scale.multiplyScalar(s);
   model.position.y = -box.min.y * s;
   model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
