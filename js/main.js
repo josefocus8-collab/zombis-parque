@@ -176,7 +176,9 @@ function showHelp() {
       <p><b>5.</b> Cada niño guarda algunos números del código final. Al final, ¡juntaos para abrir el maletín!</p>
       <p>💡 Si os atascáis, pulsad <b>Pista</b>.</p>
     </div>
+    <button id="b-sheet" class="small wide">📄 Hoja de instrucciones para el adulto</button>
     <button id="b-back">⬅️ Volver</button>`;
+  $('#b-sheet').onclick = () => { location.href = 'instrucciones.html'; };
   $('#b-back').onclick = showHome;
 }
 

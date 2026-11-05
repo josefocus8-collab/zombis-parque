@@ -1,6 +1,6 @@
 // Guarda el juego en el móvil para que funcione aunque falle la cobertura
-const CACHE = 'zp-v1';
-const CORE = ['./', 'index.html', 'css/style.css', 'js/main.js', 'js/util.js', 'js/audio.js', 'js/geo.js', 'js/net.js', 'js/config.js', 'js/story.js', 'js/models.js', 'js/ar.js', 'js/challenges.js', 'icon.svg', 'manifest.webmanifest'];
+const CACHE = 'zp-v2';
+const CORE = ['./', 'index.html', 'css/style.css', 'js/main.js', 'js/util.js', 'js/audio.js', 'js/geo.js', 'js/net.js', 'js/config.js', 'js/story.js', 'js/models.js', 'js/ar.js', 'js/challenges.js', 'icon.svg', 'manifest.webmanifest', 'instrucciones.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
