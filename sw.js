@@ -1,5 +1,5 @@
 // Guarda el juego en el móvil para que funcione aunque falle la cobertura
-const CACHE = 'zp-v12';
+const CACHE = 'zp-v13';
 const CORE = ['./', 'index.html', 'css/style.css', 'js/main.js', 'js/util.js', 'js/audio.js', 'js/geo.js', 'js/net.js', 'js/config.js', 'js/story.js', 'js/models.js', 'js/ar.js', 'js/challenges.js', 'js/voice.js', 'icon.svg', 'manifest.webmanifest', 'instrucciones.html'];
 
 self.addEventListener('install', (e) => {

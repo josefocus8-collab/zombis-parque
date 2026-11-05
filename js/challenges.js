@@ -632,9 +632,12 @@ const TEMPS = [
   [0, '🌋 ¡Ardiendo!', '#ff2d2d'],
 ];
 
-function arrivedAt(target, maxR = 20) {
+// Margen de llegada: si el punto estaba cerca al empezar (d0), hay que acercarse más,
+// para que siempre haya un tramo que recorrer
+function arrivedAt(target, maxR = 20, d0 = Infinity) {
   if (!geo.pos) return false;
-  return distM(geo.pos, target) <= Math.max(8, Math.min(Math.max(12, geo.acc || 0), maxR));
+  const r = Math.min(Math.max(8, Math.min(Math.max(12, geo.acc || 0), maxR)), Math.max(5, d0 * 0.45));
+  return distM(geo.pos, target) <= r;
 }
 
 // Botones para la prueba en casa dentro de la cámara (andar sin moverse del sofá)
@@ -832,14 +835,15 @@ function followFootprints({ ar }, cl, target) {
       steps.push(w);
     }
     const yst = {};
-    let t = 0, done = false;
+    let t = 0, done = false, d0 = null;
     cl.push(ar.onUpdate((dt) => {
       if (done) return;
       t += dt;
       if (!geo.pos) { ar.setMsg('📡 Buscando GPS…'); prints.visible = false; return; }
       const d = distM(geo.pos, target);
+      if (d0 == null) d0 = d;
       ar.setCount(`👣 ${Math.round(d)} m`);
-      if (arrivedAt(target, 12)) { done = true; prints.visible = false; ar.setCount(''); ar.arrow(null); ar.diagExtra = ''; res(); return; }
+      if (arrivedAt(target, 12, d0)) { done = true; prints.visible = false; ar.setCount(''); ar.arrow(null); ar.diagExtra = ''; res(); return; }
       // en el ordenador (arrastrando) no hay brújula: el norte es hacia donde se miraba al empezar
       const heading = ar.mode === 'drag' ? (((-ar.camYaw() / DEG) % 360) + 360) % 360 : geo.heading;
       if (heading == null) { ar.setMsg('🧭 Mueve el móvil haciendo un 8 para que aparezcan las huellas', 0); prints.visible = false; ar.diagExtra = `huellas: sin brújula · ${Math.round(d)} m`; return; }
@@ -1057,7 +1061,7 @@ function zombiePath({ ar, audio, fear }, cl, ctx) {
       // radar sin punto: solo frío / caliente
       if (geo.pos) {
         const d = distM(geo.pos, target);
-        if (d0 == null) d0 = Math.max(d, 20);
+        if (d0 == null) d0 = d;
         const [, label, color] = TEMPS.find(([l]) => d > l) || TEMPS[TEMPS.length - 1];
         hud.querySelector('b').textContent = label;
         hud.style.setProperty('--heat', color);
@@ -1066,8 +1070,8 @@ function zombiePath({ ar, audio, fear }, cl, ctx) {
           audio.beep(clamp(1200 - d * 8, 300, 1200), 0.12);
           vibrate(d < 15 ? [90, 60, 90] : 50);
         }
-        if (spawned < TOTAL && 1 - d / d0 >= marks[spawned] && now - lastSpawn > 4000) spawn();
-        if (!arrivedFlag && arrivedAt(target)) { arrivedFlag = true; ctx.arrive(); }
+        if (spawned < TOTAL && 1 - d / Math.max(d0, 20) >= marks[spawned] && now - lastSpawn > 4000) spawn();
+        if (!arrivedFlag && arrivedAt(target, 20, d0)) { arrivedFlag = true; ctx.arrive(); }
       }
       // si se paran mucho (o ya han llegado) salen igualmente los que faltan
       if (spawned < TOTAL && now - lastSpawn > (arrivedFlag ? 2500 : 30000)) spawn();

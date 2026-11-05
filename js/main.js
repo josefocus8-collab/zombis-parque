@@ -313,7 +313,7 @@ function showPrep() {
       if (!b) { toast('📡 Todavía no hay señal GPS. Espera unos segundos al aire libre.'); return; }
       const close = draft.points.map((p, i) => [i, distM(p, b)]).find(([, d]) => d < MIN_SEP);
       if (close) {
-        const r = await modal(`<p class="big">⚠️ Este sitio está a ${Math.round(close[1])} m del punto ${close[0] + 1}.</p><p>Los puntos deben estar a 25 m o más para que el GPS no los confunda. Aléjate un poco más.</p>`, { buttons: [{ label: 'Vale, me alejo', cls: 'green' }, { label: 'Guardar igualmente', cls: 'small' }] });
+        const r = await modal(`<p class="big">⚠️ Este sitio está a ${Math.round(close[1])} m del punto ${close[0] + 1}.</p><p>Los puntos deben estar a <b>25 m o más</b> (unos 35 pasos). Si están más cerca, el GPS los confunde y las pruebas de caminar (radar, huellas, brújula) se quedan casi sin recorrido.</p><p>Aléjate un poco más y vuelve a pulsar.</p>`, { buttons: [{ label: 'Vale, me alejo', cls: 'green' }, { label: 'Guardar igualmente (no recomendado)', cls: 'small' }] });
         if (r !== 1) return;
       }
       if (b.acc > 20) toast(`Guardado, pero el GPS no es muy preciso ahora (±${Math.round(b.acc)} m).`, 5000);
@@ -667,6 +667,7 @@ function viewNav(st, s) {
       };
     });
   }
+  let d0 = null;
   let arrived = false, lastPulse = 0, d = Infinity, dotAngle = null, lastSweep = 0;
   const update = () => {
     const status = $('#n-status', st), gps = $('#n-gps', st);
@@ -701,7 +702,9 @@ function viewNav(st, s) {
       $('.rose', st).style.transform = `rotate(${-(geo.heading || 0)}deg)`;
       status.innerHTML = `<b>${Math.round(d)} m</b>${geo.heading == null ? '<br><small>Mueve el móvil haciendo un 8 para que funcione la brújula</small>' : ''}`;
     }
-    const radius = Math.max(ARRIVE_M, Math.min(geo.acc || 0, 20));
+    if (d0 == null) d0 = d;
+    // si el punto está cerca desde el principio, hay que acercarse más (siempre hay tramo que andar)
+    const radius = Math.min(Math.max(ARRIVE_M, Math.min(geo.acc || 0, 20)), Math.max(5, d0 * 0.45));
     if (!arrived && d <= radius) {
       arrived = true;
       audio.chime();
