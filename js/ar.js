@@ -103,10 +103,14 @@ export class AR {
     return this.mode;
   }
 
+  // Indicador arriba: RA+ = realidad aumentada recibiendo profundidad ahora mismo
   badge() {
     const el = $('#ar-mode');
     if (!el) return;
-    el.textContent = this.mode === 'xr' ? (this.depthOn ? 'RA+' : 'RA') : this.mode === 'orient' ? '📷' : '🖱️';
+    const depthNow = this.depthTime && performance.now() - this.depthTime < 1500;
+    el.textContent = this.mode === 'xr' ? (depthNow ? 'RA+' : 'RA') : this.mode === 'orient' ? '📷' : '🖱️';
+    clearTimeout(this._badgeT);
+    if (this.active) this._badgeT = setTimeout(() => this.badge(), 1000);
   }
 
   async startXR() {
@@ -141,6 +145,15 @@ export class AR {
       if (this.active) this.requestExit();
     });
     this.renderer.setAnimationLoop((t, f) => this.frame(f));
+    // Consejo una vez por partida: la mano tiene que estar lejos del móvil para tapar
+    if (!this._handTip) {
+      setTimeout(() => {
+        if (this.active && this.depthTime && !this._handTip) {
+          this._handTip = true;
+          this.toast('✋ Para tapar a un zombi con la mano, <b>estira bien el brazo</b>: tiene que estar a más de medio metro del móvil.', 6000);
+        }
+      }, 6000);
+    }
   }
 
   async startFallback() {
@@ -182,9 +195,44 @@ export class AR {
         if (this.depthOn) this.updateDepth(f);
       }
     } else this.updateOrientation();
-    for (const c of this.scene.children) if (c.userData.floor) c.position.y = this.floorY;
+    for (const c of this.scene.children) {
+      if (!c.userData.floor) continue;
+      c.position.y = this.floorY;
+      if (!c.userData.fitted && this.depthCpu) this.fitInRoom(c);
+    }
     for (const u of this.updaters) { try { u(dt); } catch (e) { console.warn(e); } }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // Distancia real (metros) en un punto de la pantalla, según el sensor de profundidad. 0 = no se sabe.
+  depthAt(sx, sy) {
+    const d = this.depthCpu;
+    if (!d || performance.now() - this.depthTime > 1000) return 0;
+    const v = new THREE.Vector4(sx / innerWidth, sy / innerHeight, 0, 1).applyMatrix4(d.m);
+    const col = clamp(Math.floor(v.x * d.w), 0, d.w - 1), row = clamp(Math.floor(v.y * d.h), 0, d.h - 1);
+    return d.data[row * d.w + col] * d.raw;
+  }
+
+  // Si un objeto ha quedado "dentro" de una pared o un mueble, lo acerca hasta delante del obstáculo.
+  // Se hace una sola vez, la primera vez que el objeto aparece en pantalla.
+  fitInRoom(obj) {
+    const c = this.centerOf(obj);
+    const s = this.toScreen(c);
+    if (!s || s.x < 0 || s.y < 0 || s.x > innerWidth || s.y > innerHeight) return;
+    obj.userData.fitted = true;
+    // mirar varios puntos alrededor del centro y quedarse con el obstáculo más cercano
+    let real = Infinity;
+    for (const [dx, dy] of [[0, 0], [-25, 0], [25, 0], [0, -30], [0, 30]]) {
+      const r = this.depthAt(s.x + dx, s.y + dy);
+      if (r > 0.3) real = Math.min(real, r);
+    }
+    const p = this.camPos();
+    const dist = Math.hypot(obj.position.x - p.x, obj.position.z - p.z);
+    if (!isFinite(real) || real > dist - 0.3) return;
+    const nd = Math.max(0.9, real - 0.45);
+    const k = nd / dist;
+    obj.position.x = p.x + (obj.position.x - p.x) * k;
+    obj.position.z = p.z + (obj.position.z - p.z) * k;
   }
 
   // Busca el suelo (solo planos horizontales por debajo del móvil) y lo fija
@@ -240,6 +288,12 @@ export class AR {
     tex.needsUpdate = true;
     U.uUvT.value.fromArray(di.normDepthBufferFromNormView.matrix);
     U.uRawToM.value = di.rawValueToMeters;
+    // copia para consultar distancias desde el programa (paredes)
+    this.depthCpu = {
+      data: isFloat ? new Float32Array(di.data.slice(0)) : new Uint16Array(di.data.slice(0)),
+      w, h, raw: di.rawValueToMeters, m: U.uUvT.value.clone(),
+    };
+    this.depthTime = performance.now();
     const bl = this.session && this.session.renderState.baseLayer;
     if (bl) U.uViewport.value.set(bl.framebufferWidth, bl.framebufferHeight);
     U.uOn.value = 1;
@@ -353,12 +407,21 @@ if (uOn > 0.5) {
     const now = performance.now();
     if (now - this._lastTap < 250) return;
     this._lastTap = now;
+    this.ripple(x, y);
     const f = this.camera.projectionMatrix.elements[5];
     let best = null, bestScore = Infinity;
+    // Plan B para dedos de niño: si no se acierta, vale cualquier objeto visible a menos de un tercio de pantalla
+    let near = null, nearD = Math.hypot(innerWidth, innerHeight) / 3;
     for (const obj of this.tappables) {
       const seg = obj.userData.tapSeg || [obj.userData.center || new THREE.Vector3()];
       const pts = seg.map((p) => this.toScreen(obj.localToWorld(p.clone())));
       if (pts.some((p) => !p)) continue;
+      const mid = pts[pts.length > 1 ? 1 : 0];
+      const onScreen = pts.some((p) => p.x > 0 && p.x < innerWidth && p.y > 0 && p.y < innerHeight);
+      if (onScreen) {
+        const dd = Math.min(...pts.map((p) => Math.hypot(x - p.x, y - p.y)), Math.hypot(x - (pts[0].x + mid.x) / 2, y - (pts[0].y + mid.y) / 2));
+        if (dd < nearD) { nearD = dd; near = obj; }
+      }
       let d;
       if (pts.length === 1) d = Math.hypot(x - pts[0].x, y - pts[0].y);
       else {
@@ -373,7 +436,18 @@ if (uOn > 0.5) {
       const score = d / thr;
       if (score < 1 && score < bestScore) { best = obj; bestScore = score; }
     }
+    best = best || near;
     if (best && best.userData.onTap) best.userData.onTap(best);
+  }
+
+  // Círculo donde se ha tocado (para ver que el toque ha llegado)
+  ripple(x, y) {
+    const r = document.createElement('div');
+    r.className = 'tap-ripple';
+    r.style.left = x + 'px';
+    r.style.top = y + 'px';
+    this.ui.append(r);
+    setTimeout(() => r.remove(), 600);
   }
 
   centerOf(obj) {
@@ -495,6 +569,8 @@ if (uOn > 0.5) {
     this.clear();
     this.reticle.visible = false;
     this.occ.uniforms.uOn.value = 0;
+    this.depthCpu = null;
+    this.depthTime = 0;
     this.exitHandlers.clear();
     this.root.hidden = true;
     this.root.classList.remove('xr', 'nocam', 'drag');

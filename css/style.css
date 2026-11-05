@@ -244,7 +244,9 @@ canvas.rub { position: absolute; inset: 0; width: 100%; height: 100%; touch-acti
 @keyframes flashGold { 0% { opacity: 1; background: rgba(255, 220, 120, .6); } 100% { opacity: 0; background: rgba(255, 220, 120, .6); } }
 @keyframes flashBite { 0% { opacity: 1; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } 100% { opacity: 0; background: radial-gradient(circle, rgba(120, 0, 0, .2) 30%, rgba(160, 0, 0, .95)); } }
 #ar-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 900; text-shadow: 0 2px 6px #000; pointer-events: none; }
-#ar-mode { font-size: .8rem; opacity: .6; align-self: center; }
+#ar-mode { font-size: .8rem; opacity: .7; align-self: center; }
+.tap-ripple { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; border: 4px solid rgba(255, 210, 63, .95); pointer-events: none; animation: ripple .6s ease-out forwards; }
+@keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 .tap-cam { cursor: pointer; border: 3px dashed var(--gold); animation: glowcam 1.4s infinite; text-align: center; }
 .tap-cam .cam-big { font-size: 5rem; }
 @keyframes glowcam { 50% { box-shadow: 0 0 30px rgba(255, 210, 63, .45); } }
